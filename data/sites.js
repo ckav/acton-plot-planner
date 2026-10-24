@@ -3,6 +3,7 @@
 window.PLANNER_SITES = [
  {
   "key": "bromyard",
+ "recordName": "Bromyard",
   "name": "Bromyard Avenue",
   "image": "img/bromyard-satellite.jpg",
   "imageW": 1246,

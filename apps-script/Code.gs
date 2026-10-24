@@ -19,14 +19,15 @@
 
 var ROOT_NAME = 'Plot checks';
 var SHEET_NAME = 'Plot checks';
-var HEADERS = ['Sent', 'Who', 'Site', 'Plot', 'How it looks', 'Flags', 'Note', 'Photo', 'Received'];
+var HEADERS = ['Sent', 'Who', 'Site', 'Plot', 'How it looks', 'Shed', 'Shed condition', 'Polytunnel', 'Water harvesting', 'Water - what', 'Flags', 'Note', 'Photo', 'Received'];
 
 function doPost(e) {
   try {
     var d = JSON.parse(e.postData.contents || '{}');
     var who = clean_(d.who, 60), site = clean_(d.site, 30), plot = clean_(d.plot, 12);
     var look = clean_(d.look, 60), note = clean_(d.note, 500);
-    var flags = Array.isArray(d.flags) ? d.flags.map(function (f) { return clean_(f, 60); }).join(', ') : '';
+    var flags = list_(d.flags), waterWhat = list_(d.waterWhat);
+    var shed = clean_(d.shed, 5), shedCond = clean_(d.shedCondition, 40), poly = clean_(d.polytunnel, 5), water = clean_(d.water, 5);
     if (!who || !site || !plot || !look) return json_({ ok: false, error: 'missing who, site, plot or look' });
 
     var root = folder_(DriveApp.getRootFolder(), ROOT_NAME);
@@ -42,7 +43,7 @@ function doPost(e) {
     }
 
     var sheet = sheet_(root);
-    sheet.appendRow([d.sentAt || '', who, site, plot, look, flags, note, url, new Date()]);
+    sheet.appendRow([d.sentAt || '', who, site, plot, look, shed, shedCond, poly, water, waterWhat, flags, note, url, new Date()]);
     return json_({ ok: true, photo: url });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
@@ -70,6 +71,10 @@ function sheet_(root) {
     ss.getSheets()[0].setFrozenRows(1);
   }
   return ss.getSheets()[0];
+}
+
+function list_(v) {
+  return Array.isArray(v) ? v.map(function (f) { return clean_(f, 60); }).join(', ') : '';
 }
 
 function clean_(v, max) {

@@ -142,6 +142,7 @@
       '<div><dt>Photos</dt><dd>None yet</dd></div>' +
       '<div><dt>Flags</dt><dd>None yet</dd></div>' +
       '</dl>' +
+      '<a class="btn" href="check.html?site=' + encodeURIComponent(site.recordName || site.name) + '&plot=' + encodeURIComponent(p.id.toUpperCase()) + '">Check this plot</a>' +
       '<p class="note">' + full + ' full and ' + half + ' half plots drawn on this site. Numbers are provisional until the site rep has walked it.</p>';
   }
 
