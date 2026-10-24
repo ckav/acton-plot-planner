@@ -27,7 +27,7 @@
 var ROOT_NAME = 'Plot checks';
 var SHEET_NAME = 'Plot checks';
 var TABS = {
-  Entries: ['Sent', 'Who', 'Site', 'Plot', 'How it looks', 'Shed', 'Shed condition', 'Polytunnel', 'Water harvesting', 'Water - what', 'Flags', 'Note', 'Photo', 'Received'],
+  Entries: ['Sent', 'Who', 'Site', 'Plot', 'How it looks', 'Shed', 'Shed condition', 'Greenhouse', 'Polytunnel', 'Water harvesting', 'Water - what', 'Flags', 'Note', 'Photo', 'Received'],
   Jobs: ['Id', 'Code', 'Logged', 'By', 'Site', 'What', 'Detail', 'How soon', 'Near plot', 'X', 'Y', 'Photo', 'Received'],
   'Job updates': ['Id', 'At', 'By', 'Site', 'Status', 'Note', 'Received']
 };
@@ -58,11 +58,11 @@ function saveCheck_(d) {
   var who = clean_(d.who, 60), site = clean_(d.site, 30), plot = clean_(d.plot, 12);
   var look = clean_(d.look, 60), note = clean_(d.note, 500);
   var flags = list_(d.flags), waterWhat = list_(d.waterWhat);
-  var shed = clean_(d.shed, 5), shedCond = clean_(d.shedCondition, 40), poly = clean_(d.polytunnel, 5), water = clean_(d.water, 5);
+  var shed = clean_(d.shed, 5), shedCond = clean_(d.shedCondition, 40), green = clean_(d.greenhouse, 5), poly = clean_(d.polytunnel, 5), water = clean_(d.water, 5);
   if (!who || !site || !plot || !look) return json_({ ok: false, error: 'missing who, site, plot or look' });
   var plotFolder = folder_(folder_(root_(), site), 'Plot ' + plot);
   var url = d.photo ? savePhoto_(plotFolder, d.photo, d.photoType, stamp_() + ' ' + who + '.jpg') : '';
-  tab_('Entries').appendRow([d.sentAt || '', who, site, plot, look, shed, shedCond, poly, water, waterWhat, flags, note, url, new Date()]);
+  tab_('Entries').appendRow([d.sentAt || '', who, site, plot, look, shed, shedCond, green, poly, water, waterWhat, flags, note, url, new Date()]);
   return json_({ ok: true, photo: url });
 }
 

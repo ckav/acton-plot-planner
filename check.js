@@ -1,9 +1,11 @@
 /* Plot check form. No sign-in: the page shrinks the photo on the phone, then posts one JSON message
    to the association's Apps Script web app, which files the photo in Drive and writes the sheet row.
+   Built for a walk: "Next plot" moves to the next number on the site, and entries queue on the phone
+   when there is no signal (or no receiver yet) and go when "Send waiting entries" is tapped or the page
+   next loads with a connection.
    Entry points:
-     check.html?site=Bromyard&plot=7A          from "Check this plot" on the map
-     check.html?who=Jon%20Snow&site=Bromyard   a rep's own link
-   The rep's name is remembered on the phone after the first entry, so later taps go map -> plot -> answers. */
+     check.html?site=Bromyard&plot=7A          from "Add / edit notes" on the map
+     check.html?who=Jon%20Snow&site=Bromyard   a rep's own link */
 (function () {
   var PLOTS = window.PLANNER_PLOTS || {};
   var REPS = window.PLANNER_REPS || [];
@@ -12,25 +14,16 @@
   var SHED_COND = ['Good condition', 'Needs roof repair', 'Unsafe - needs removing'];
   var WATER_WHAT = ['Gutters on the shed', 'Water butt connected', 'Water butt not connected to anything', 'Other container catching rain'];
   var FLAGS = ['More than one shed or greenhouse', 'Plot number not displayed', 'Hedge or trees over the boundary', 'Gate locked', 'Rubbish or materials to clear'];
-  var MAX_EDGE = 1600, JPEG_Q = 0.82;
+  var MAX_EDGE = 1280, JPEG_Q = 0.78;   // about 150 KB a photo, so thirty can wait on the phone
 
   var $ = function (id) { return document.getElementById(id); };
   var photo = null;
+  var store = function (k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('aga-' + k) || 'null'); localStorage.setItem('aga-' + k, JSON.stringify(v)); return true; } catch (e) { return v === undefined ? null : false; } };
 
-  function radios(id, name, values) {
-    $(id).innerHTML = values.map(function (t) {
-      return '<label class="opt"><input type="radio" name="' + name + '" value="' + t + '"><span>' + t + '</span></label>';
-    }).join('');
-  }
-  function checks(id, name, values) {
-    $(id).innerHTML = values.map(function (t) {
-      return '<label class="opt"><input type="checkbox" name="' + name + '" value="' + t + '"><span>' + t + '</span></label>';
-    }).join('');
-  }
+  function radios(id, name, values) { $(id).innerHTML = values.map(function (t) { return '<label class="opt"><input type="radio" name="' + name + '" value="' + t + '"><span>' + t + '</span></label>'; }).join(''); }
+  function checks(id, name, values) { $(id).innerHTML = values.map(function (t) { return '<label class="opt"><input type="checkbox" name="' + name + '" value="' + t + '"><span>' + t + '</span></label>'; }).join(''); }
   function picked(name) { var i = document.querySelector('input[name=' + name + ']:checked'); return i ? i.value : ''; }
   function pickedAll(name) { return Array.prototype.map.call(document.querySelectorAll('input[name=' + name + ']:checked'), function (i) { return i.value; }); }
-  function remember(k, v) { try { localStorage.setItem('aga-' + k, v); } catch (e) {} }
-  function recall(k) { try { return localStorage.getItem('aga-' + k) || ''; } catch (e) { return ''; } }
 
   function fill() {
     var who = $('who');
@@ -41,6 +34,7 @@
     radios('look', 'look', LOOKS);
     radios('shed', 'shed', ['No', 'Yes']);
     radios('shedCond', 'shedCond', SHED_COND);
+    radios('green', 'green', ['No', 'Yes']);
     radios('poly', 'poly', ['No', 'Yes']);
     radios('water', 'water', ['No', 'Yes']);
     checks('waterWhat', 'waterWhat', WATER_WHAT);
@@ -55,30 +49,27 @@
     if (keep) plot.value = keep;
   }
 
+  function whoName() { return $('who').value === 'other' ? $('whoOther').value.trim() : $('who').value; }
   function showWho() {
-    var w = $('who').value === 'other' ? $('whoOther').value.trim() : $('who').value;
-    if (!w) return;
-    $('whoText').textContent = w;
-    $('whoBar').classList.remove('hidden');
-    $('whoFs').classList.add('hidden');
+    var w = whoName(); if (!w) return;
+    $('whoText').textContent = w; $('whoBar').classList.remove('hidden'); $('whoFs').classList.add('hidden');
+  }
+  function showPlot(site, plot) {
+    $('plotBar').innerHTML = 'Plot ' + plot + '<small>' + site + ' - <a href="#" id="plotChange">not this one?</a></small>';
+    $('plotBar').classList.remove('hidden'); $('siteFs').classList.add('hidden'); $('plotFs').classList.add('hidden');
+    $('plotChange').addEventListener('click', function (ev) { ev.preventDefault(); $('plotBar').classList.add('hidden'); $('siteFs').classList.remove('hidden'); $('plotFs').classList.remove('hidden'); });
   }
 
-  function prefill() {
+  function prefill(siteOverride, plotOverride) {
     var q = new URLSearchParams(location.search);
-    var who = q.get('who') || recall('who');
-    var site = q.get('site') || '', plot = q.get('plot') || '';
+    var who = q.get('who') || store('who') || '';
+    var site = siteOverride || q.get('site') || '', plot = plotOverride || q.get('plot') || '';
     if (who && REPS.some(function (r) { return r.name === who; })) { $('who').value = who; showWho(); }
+    else if (who) { $('who').value = 'other'; $('whoOther').value = who; $('whoOther').classList.remove('hidden'); showWho(); }
     if (!site) { var rep = REPS.filter(function (r) { return r.name === $('who').value; })[0]; site = rep ? rep.site : ''; }
     if (site && PLOTS[site]) { $('site').value = site; fillPlots(plot); }
-    if (site && plot && PLOTS[site] && PLOTS[site].indexOf(plot) >= 0) {
-      $('plotBar').innerHTML = 'Plot ' + plot + '<small>' + site + ' - <a href="#" id="plotChange">not this one?</a></small>';
-      $('plotBar').classList.remove('hidden');
-      $('siteFs').classList.add('hidden');
-      $('plotFs').classList.add('hidden');
-      $('plotChange').addEventListener('click', function (ev) { ev.preventDefault(); $('plotBar').classList.add('hidden'); $('siteFs').classList.remove('hidden'); $('plotFs').classList.remove('hidden'); });
-    }
-    $('mapLink').href = 'index.html' + (site ? '?site=' + encodeURIComponent(site) : '');
-    $('nextLink').href = $('mapLink').href;
+    if (site && plot && PLOTS[site] && PLOTS[site].indexOf(plot) >= 0) showPlot(site, plot);
+    $('mapLink').href = 'index.html'; $('nextLink').href = 'index.html';
   }
 
   function shrink(file, cb) {
@@ -87,8 +78,7 @@
       var img = new Image();
       img.onload = function () {
         var s = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
-        var c = document.createElement('canvas');
-        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        var c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         var dataUrl = c.toDataURL('image/jpeg', JPEG_Q);
         cb({ base64: dataUrl.split(',')[1], dataUrl: dataUrl });
@@ -101,36 +91,75 @@
 
   function show(kind, text) { var m = $('msg'); m.className = 'msg ' + kind; m.textContent = text; }
 
+  // ---- queue: entries that could not be sent wait on the phone
+  function queue() { return store('queue') || []; }
+  function enqueue(body) { var q = queue(); q.push(body); if (!store('queue', q)) return false; return true; }
+  function showQueue() {
+    var n = queue().length;
+    $('queue').classList.toggle('hidden', n === 0);
+    $('queueText').textContent = n + (n === 1 ? ' entry' : ' entries') + ' waiting on this phone' + (CONFIG.submitUrl ? '.' : ' until the form is connected.');
+    $('queueSend').classList.toggle('hidden', !CONFIG.submitUrl);
+  }
+  function sendOne(body) {
+    return fetch(CONFIG.submitUrl, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok) throw new Error(j && j.error ? j.error : 'not saved'); return j; });
+  }
+  function flush() {
+    if (!CONFIG.submitUrl) return;
+    var q = queue(); if (!q.length) return;
+    $('queueSend').disabled = true; $('queueText').textContent = 'Sending ' + q.length + '...';
+    var done = 0;
+    (function next() {
+      if (!q.length) { store('queue', []); $('queueSend').disabled = false; showQueue(); show('ok', done + ' waiting ' + (done === 1 ? 'entry' : 'entries') + ' sent.'); return; }
+      sendOne(q[0]).then(function () { q.shift(); done++; store('queue', q); next(); })
+        .catch(function () { store('queue', q); $('queueSend').disabled = false; showQueue(); $('queueText').textContent = 'Still no connection - ' + q.length + ' waiting. Try again later.'; });
+    })();
+  }
+
+  function afterSave(site, plot, text) {
+    store('who', whoName());
+    show('ok', text);
+    $('after').classList.remove('hidden'); $('send').classList.add('hidden');
+    var list = PLOTS[site] || [], i = list.indexOf(plot);
+    var nxt = (i >= 0 && i + 1 < list.length) ? list[i + 1] : '';
+    $('nextPlot').textContent = nxt ? 'Next: plot ' + nxt : 'That was the last plot';
+    $('nextPlot').disabled = !nxt;
+    $('nextPlot').onclick = function () {
+      $('form').reset(); photo = null; $('preview').classList.add('hidden'); $('photoNote').textContent = '';
+      $('shedSub').classList.add('hidden'); $('waterSub').classList.add('hidden');
+      $('after').classList.add('hidden'); $('send').classList.remove('hidden'); $('msg').className = 'msg hidden';
+      prefill(site, nxt); window.scrollTo(0, 0);
+    };
+  }
+
   function submit(ev) {
     ev.preventDefault();
-    var who = $('who').value === 'other' ? $('whoOther').value.trim() : $('who').value;
-    var site = $('site').value, plot = $('plot').value;
-    var look = picked('look'), shed = picked('shed'), poly = picked('poly'), water = picked('water');
+    var who = whoName(), site = $('site').value, plot = $('plot').value;
+    var look = picked('look'), shed = picked('shed'), green = picked('green'), poly = picked('poly'), water = picked('water');
     if (!who) return show('err', 'Say who this is from.');
     if (!site || !plot) return show('err', 'Pick the site and the plot number.');
     if (!look) return show('err', 'Say how the plot looks.');
-    if (!shed || !poly || !water) return show('err', 'Answer shed, polytunnel and water harvesting - a No is fine.');
+    if (!shed || !green || !poly || !water) return show('err', 'Answer shed, greenhouse, polytunnel and water harvesting - a No is fine.');
     if (shed === 'Yes' && !picked('shedCond')) return show('err', 'What condition is the shed in?');
-    if (!CONFIG.submitUrl) return show('warn', 'Not connected yet - nothing was sent. WhatsApp the photo and plot number to Claire for now.');
     var body = {
-      who: who, site: site, plot: plot, look: look,
+      kind: 'check', who: who, site: site, plot: plot, look: look,
       shed: shed, shedCondition: shed === 'Yes' ? picked('shedCond') : '',
-      polytunnel: poly,
+      greenhouse: green, polytunnel: poly,
       water: water, waterWhat: water === 'Yes' ? pickedAll('waterWhat') : [],
       flags: pickedAll('flag'), note: $('note').value.trim(),
       photo: photo ? photo.base64 : '', photoType: 'image/jpeg', sentAt: new Date().toISOString()
     };
+    if (!CONFIG.submitUrl) {
+      if (!enqueue(body)) return show('err', 'This phone cannot hold any more entries. Send the photo and notes to Claire by WhatsApp.');
+      showQueue(); return afterSave(site, plot, 'Saved on this phone: ' + site + ' plot ' + plot + '. It goes to the record once the form is connected.');
+    }
     $('send').disabled = true; show('warn', 'Sending...');
-    fetch(CONFIG.submitUrl, { method: 'POST', body: JSON.stringify(body) })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.ok) throw new Error(j && j.error ? j.error : 'not saved');
-        remember('who', who);
-        show('ok', 'Logged: ' + site + ' plot ' + plot + '. Thank you.' + (photo ? ' Photo filed.' : ''));
-        $('after').classList.remove('hidden');
-        $('send').classList.add('hidden');
+    sendOne(body)
+      .then(function () { afterSave(site, plot, 'Logged: ' + site + ' plot ' + plot + '. Thank you.' + (photo ? ' Photo filed.' : '')); })
+      .catch(function () {
+        if (enqueue(body)) { showQueue(); afterSave(site, plot, 'No connection - saved on this phone: ' + site + ' plot ' + plot + '. It will send when you tap "Send waiting entries" with a signal.'); }
+        else show('err', 'No connection and this phone cannot hold any more entries. Try again when you have a signal.');
       })
-      .catch(function (e) { show('err', 'Did not go through (' + e.message + '). Try again, or WhatsApp it to Claire.'); $('send').disabled = false; });
+      .then(function () { $('send').disabled = false; });
   }
 
   fill();
@@ -154,6 +183,9 @@
     });
   });
   $('form').addEventListener('submit', submit);
+  $('queueSend').addEventListener('click', flush);
   prefill();
   if (!CONFIG.submitUrl) $('notready').classList.remove('hidden');
+  showQueue();
+  if (CONFIG.submitUrl && queue().length && navigator.onLine) flush();
 })();

@@ -58,7 +58,7 @@
 </header>
 <main>
   <div class="wrap">
-    <div id="notready" class="msg warn hidden">This form is not connected yet, so nothing can be sent. Until it is, WhatsApp the photo and plot number to Claire.</div>
+    <div id="notready" class="msg warn hidden">This form is not connected yet. Entries you save are kept on this phone and sent once it is.</div>
 
     <div id="whoBar" class="who hidden"><span id="whoText"></span><button type="button" id="whoChange">Change</button></div>
 
@@ -93,6 +93,11 @@
           <p class="hint">What condition?</p>
           <div class="opts" id="shedCond"></div>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Greenhouse?</legend>
+        <div class="opts row" id="green"></div>
       </fieldset>
 
       <fieldset>
@@ -136,9 +141,15 @@
       <button type="submit" class="btn big" id="send">Send</button>
       <div id="msg" class="msg hidden" role="status"></div>
       <div id="after" class="after hidden">
-        <a class="btn ghost" id="nextLink" href="index.html">Pick the next plot on the map</a>
+        <button type="button" class="btn" id="nextPlot">Next plot</button>
+        <a class="btn ghost" id="nextLink" href="index.html">Back to the map</a>
       </div>
     </form>
+
+    <div id="queue" class="msg warn hidden" role="status">
+      <span id="queueText"></span>
+      <button type="button" class="btn ghost" id="queueSend" style="margin-top:8px; min-height:40px">Send waiting entries now</button>
+    </div>
 
     <p class="small">What you send goes straight into the association's own Drive and sheet, filed by site and plot. Nothing is stored on this page.</p>
   </div>
