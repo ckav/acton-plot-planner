@@ -74,7 +74,7 @@
   function buildControls() {
     var sel = $('site');
     sel.innerHTML = '';
-    sites.forEach(function (s, i) { var o = document.createElement('option'); o.value = i; o.textContent = s.name + (s.holding ? ' (holding)' : ''); sel.appendChild(o); });
+    sites.forEach(function (s, i) { var o = document.createElement('option'); o.value = i; o.textContent = s.name + (s.holding ? ' (no plots yet)' : ''); sel.appendChild(o); });
     sel.addEventListener('change', function () { site = sites[+sel.value]; selected = null; jobId = null; mode = 'plot'; remoteJobs = null; loadRemote(); draw(); });
 
     var chips = $('layers');
@@ -183,7 +183,7 @@
     if (mode === 'logjob') return drawLogJob(panel);
     var p = site.plots.filter(function (x) { return x.id === selected; })[0];
     if (site.holding) {
-      panel.innerHTML = '<div class="eyebrow">' + esc(site.name) + '</div><p class="empty">Holding image. No plots are drawn for this area yet.</p>' +
+      panel.innerHTML = '<div class="eyebrow">' + esc(site.name) + '</div><p class="empty">Satellite view only - no plots drawn for this area yet.</p>' +
         '<p class="note">What happens next: Claire walks it with the rep, draws the outlines on the printed map, and Claude traces them in - as for Bromyard. Which site this is on the record (and so which rep) is being confirmed. Jobs can be logged here already.</p>';
       return;
     }
