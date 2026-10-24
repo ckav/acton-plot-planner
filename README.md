@@ -32,6 +32,12 @@ The right-hand panel shows whatever was last tapped:
 
 Jobs logged or updated on a phone are kept on that phone until the receiver is connected; then they are sent to the "Jobs" and "Job updates" tabs of the association sheet and read back, so every phone shows the same list. The three Bromyard jobs from the sketch are seeded in `data/sites.js`.
 
+## Site dashboard (`dashboard.html`)
+
+What a rep needs to do on their site, at a glance: plots, rent not paid in full, no email, no phone, open jobs, plots checked this season, warnings on record, record issues. Under the tiles, a to-do list in priority order (urgent jobs, rent, plots to check, emails, phones, jobs for the committee). "All sites (committee)" shows the same counts as one table.
+
+The counts come from `data/dashboard.js`, which is **numbers only**, made from the committee record by a script that lives in the association's private project folder (not in this repo). Nothing on this page names anyone. *Which* plots are behind a number is personal, so that list is not here: it will come from a private link per rep served by the receiver (next step, below).
+
 ## Plot check form (`check.html`)
 
 The rep's form, with no sign-in. The map is the menu: tap a plot, "Check this plot", answer, send, back to the map for the next one. The name is remembered on the phone after the first entry. Questions: how it looks; shed? (if yes: good condition / needs roof repair / unsafe, needs removing); polytunnel?; water harvesting? (if yes: gutters, butt connected, butt not connected, other container); anything else to flag; a photo; a line. The page shrinks the photo on the phone (longest edge 1600 px, which also strips location data), then posts one message to a small Apps Script in the association's Google account. That script files the photo in Drive as `Plot checks / <Site> / Plot <n> / <date> <who>.jpg` and appends a row to the "Plot checks" sheet, so everything is filed the moment it arrives. Nothing to move afterwards.
@@ -42,6 +48,10 @@ The rep's form, with no sign-in. The map is the menu: tap a plot, "Check this pl
 - Plot lists per site are in `data/plots.js`, from the association's record.
 
 Limits worth knowing: the web app URL is public, so anyone who finds it could post an entry (there is no login by design); the sheet shows who claimed to send it. Photos tied to plots are committee material: the Drive folder stays private to the committee.
+
+## Next: the rep's private list
+
+The dashboard says "4 plots without an email". The rep needs to know which four. That list is about identifiable people, so it never goes in this repo or on the open page. Plan: the receiver (Apps Script) gets a `?action=todo&token=...` read that looks up the token in a small "Rep links" tab (token, rep, site), reads the committee record sheet, and returns that site's plot numbers with their gaps. Each rep gets one link with their token; it opens on their phone with no login and shows only their site; changing the token revokes it. The data stays in Google and is read at the moment of asking, never stored on Netlify or GitHub. Needs the record in Google Sheets first (the committee workbook) and the receiver deployed.
 
 ## Deploy
 

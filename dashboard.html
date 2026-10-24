@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site dashboard - Acton Gardening Association</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg: #F4F3EE; --panel: #FFFFFF; --line: #DAD8CF; --ink: #1A1A1A; --muted: #5B5A54; --green: #1F5A3A; --green-soft: #E4F0E7; --amber: #B45309; --amber-soft: #FFF1D6; --red: #8A1F1F; --red-soft: #F3E0E0; --blue: #1D4ED8; --blue-soft: #DCEBFA; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding-top: 14px; padding-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; }
+  a { color: var(--green); }
+  .nav { margin-left: auto; display: flex; gap: 14px; font-size: 14px; font-weight: 600; }
+  main { padding: 16px 0 32px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 14px; }
+  .controls label { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-height: 44px; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 18px; }
+  @media (min-width: 700px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .tile .n { font-size: 34px; font-weight: 700; line-height: 1; }
+  .tile .l { font-size: 13px; color: var(--muted); }
+  .tile.good .n { color: var(--green); } .tile.warn .n { color: var(--amber); } .tile.bad .n { color: var(--red); } .tile.info .n { color: var(--blue); }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .todo { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+  .todo li { display: flex; gap: 12px; align-items: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .todo .n { flex: 0 0 auto; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+  .n.bad { background: var(--red); } .n.warn { background: var(--amber); } .n.info { background: var(--blue); } .n.good { background: var(--green); }
+  .todo .t { font-weight: 600; }
+  .todo .d { font-size: 14px; color: var(--muted); }
+  .todo a.act { display: inline-block; margin-top: 4px; font-size: 14px; font-weight: 600; }
+  .empty { color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid #EDEBE3; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .scroll { overflow-x: auto; }
+  .status { font-size: 13px; color: #5C3D00; background: var(--amber-soft); border: 1px solid #F0C879; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Site dashboard</h1>
+    <span class="sub">Acton Gardening Association</span>
+    <nav class="nav"><a href="index.html">Map</a><a href="check.html">Plot check</a></nav>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <div class="status" id="status"></div>
+    <section class="controls">
+      <label for="site">Show <select id="site"></select></label>
+      <span class="sub" id="asof"></span>
+    </section>
+    <div id="single">
+      <div class="eyebrow">At a glance</div>
+      <div class="tiles" id="tiles"></div>
+      <section class="box">
+        <div class="eyebrow">What needs doing</div>
+        <ol class="todo" id="todo"></ol>
+      </section>
+      <section class="box">
+        <div class="eyebrow">Which plots?</div>
+        <p class="note" id="which"></p>
+      </section>
+    </div>
+    <div id="all" class="box" hidden>
+      <div class="eyebrow">All sites</div>
+      <div class="scroll"><table id="table"></table></div>
+      <p class="note">Committee view: the same counts for every site. Tap a site above for its to-do list.</p>
+    </div>
+  </div>
+</main>
+<script src="data/sites.js"></script>
+<script src="data/plots.js"></script>
+<script src="data/dashboard.js"></script>
+<script src="data/config.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>
