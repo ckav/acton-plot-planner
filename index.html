@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plot planner - Acton Gardening Association</title>
+<meta name="description" content="Site maps for the Acton Gardening Association allotments: plot numbers, paths, sheds, water and jobs. Demo version.">
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #F4F3EE; --panel: #FFFFFF; --line: #DAD8CF; --ink: #1A1A1A; --muted: #5B5A54;
+    --green: #1F5A3A; --green-soft: #E4F0E7; --amber: #B45309; --amber-soft: #FFF1D6; --blue: #1D4ED8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding-top: 14px; padding-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; }
+  .badge { font-size: 12px; font-weight: 600; background: var(--amber-soft); color: #5C3D00; padding: 3px 9px; border-radius: 10px; }
+  main { padding: 16px 0 32px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
+  .controls label { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-height: 44px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9C7BD; background: var(--panel); color: var(--ink); font: 600 14px system-ui, sans-serif; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 900px) { .grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); align-items: start; } }
+  figure { margin: 0; }
+  .map { background: #2B3A2E; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .map svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  figcaption { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); padding: 8px 2px 0; }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 22px; height: 14px; border-radius: 2px; background: #4E6B52; border: 2px solid #fff; box-shadow: 0 0 0 1px #2B3A2E; }
+  .sw.half { border: 2px dashed #FFB020; }
+  .sw.path { height: 7px; border: 0; background: rgba(245,243,238,.9); box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+  .sw.sel { border: 3px solid #FFE066; background: rgba(255,224,102,.5); }
+  .dot { width: 12px; height: 12px; border-radius: 6px; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.3); }
+  .card, .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  .card h2 { font-size: 34px; margin: 4px 0 10px; color: var(--green); line-height: 1.1; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; background: var(--green-soft); color: var(--green); }
+  .pill.half { background: var(--amber-soft); color: #8A5A00; }
+  dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; font-size: 14px; }
+  dt { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+  dd { margin: 0; color: #8A5A00; }
+  .note { font-size: 13px; color: var(--muted); border-top: 1px solid #EDEBE3; padding-top: 12px; margin-top: 4px; }
+  .empty { color: var(--muted); font-size: 15px; }
+  .jobs { margin-top: 16px; }
+  .jobs ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .jobs li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+  .jcode { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 12px; background: var(--amber); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .about { margin-top: 16px; font-size: 14px; color: var(--muted); }
+  .about p { margin: 6px 0; }
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer .wrap { padding: 14px 16px; }
+  .status { font-size: 13px; color: #5C3D00; background: var(--amber-soft); border: 1px solid #F0C879; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Plot planner</h1>
+    <span class="sub">Acton Gardening Association</span>
+    <span class="badge">Demo</span>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <div class="status" id="status"></div>
+    <section class="controls" aria-label="Site and layers">
+      <label for="site">Site <select id="site"></select></label>
+      <div class="chips" id="layers" role="group" aria-label="Layers"></div>
+    </section>
+    <div class="grid">
+      <figure class="mapfig">
+        <div class="map"><svg id="map" role="img" aria-label="Site map"></svg></div>
+        <figcaption id="legend"></figcaption>
+      </figure>
+      <aside class="card" id="card" aria-live="polite"></aside>
+    </div>
+    <section class="jobs box" id="jobs"></section>
+    <section class="about box">
+      <div class="eyebrow">What this is</div>
+      <p>A map per site with the plot numbers, paths, sheds, water and jobs. Tap a plot to see its card.</p>
+      <p>Nothing about plot holders lives on this page. The committee keeps that in its own record and looks it up by plot number. This demo shows where the details would sit, not the details.</p>
+    </section>
+  </div>
+</main>
+<footer><div class="wrap" id="credit"></div></footer>
+<script src="data/sites.js"></script>
+<script src="planner.js"></script>
+</body>
+</html>
