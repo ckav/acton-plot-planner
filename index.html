@@ -48,7 +48,33 @@
   dt { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
   dd { margin: 0; color: #8A5A00; }
   .note { font-size: 13px; color: var(--muted); border-top: 1px solid #EDEBE3; padding-top: 12px; margin-top: 14px; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; padding: 0 18px; border-radius: 24px; background: var(--green); color: #fff; font: 600 16px system-ui, sans-serif; text-decoration: none; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; padding: 0 18px; border-radius: 24px; border: 1px solid var(--green); background: var(--green); color: #fff; font: 600 16px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+  .btn.ghost { background: var(--panel); color: var(--green); }
+  .btn.slim { width: auto; min-height: 40px; font-size: 14px; margin-left: auto; }
+  .linkbtn { background: none; border: 0; padding: 0 0 8px; color: var(--green); font: 600 14px system-ui, sans-serif; cursor: pointer; }
+  .jobh { font-size: 22px !important; color: var(--ink) !important; }
+  .joblist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+  .jobrow { width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 14px/1.4 system-ui, sans-serif; color: var(--ink); cursor: pointer; }
+  .jcode { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 13px; background: var(--amber); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .jcode.grey { background: #8E8C82; }
+  .jtext { display: flex; flex-direction: column; gap: 4px; }
+  .jtitle { font-weight: 600; }
+  .st { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #EDEBE3; color: var(--muted); width: max-content; }
+  .st-logged { background: var(--amber-soft); color: #8A5A00; }
+  .st-approval { background: #E8E3F7; color: #4C2A85; }
+  .st-approved { background: #DCEBFA; color: #1D4ED8; }
+  .st-done { background: var(--green-soft); color: var(--green); }
+  .st-no { background: #EDEBE3; color: var(--muted); }
+  .updates { list-style: none; padding: 0; margin: 6px 0 14px; display: grid; gap: 8px; font-size: 14px; }
+  .updates li { border-left: 3px solid var(--line); padding-left: 10px; }
+  .updform { display: grid; gap: 10px; margin-top: 10px; }
+  .updform label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .updform input[type="text"], .updform select { font: 15px system-ui, sans-serif; padding: 10px 12px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+  .updform input[type="file"] { font-size: 14px; }
+  .msg { border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+  .msg.err { background: #F3E0E0; color: #8A1F1F; }
+  .msg.ok { background: var(--green-soft); color: var(--green); }
+  .hidden { display: none !important; }
   .empty { color: var(--muted); font-size: 15px; }
   .jobs { margin-top: 16px; }
   .jobs ol { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
@@ -76,6 +102,7 @@
     <section class="controls" aria-label="Site and layers">
       <label for="site">Site <select id="site"></select></label>
       <div class="chips" id="layers" role="group" aria-label="Layers"></div>
+      <button type="button" class="btn slim" id="logjob">Log a job</button>
     </section>
     <div class="grid">
       <figure class="mapfig">
@@ -84,7 +111,6 @@
       </figure>
       <aside class="card" id="card" aria-live="polite"></aside>
     </div>
-    <section class="jobs box" id="jobs"></section>
     <section class="about box">
       <div class="eyebrow">What this is</div>
       <p>A map per site with the plot numbers, paths, sheds, water and jobs. Tap a plot to see its card.</p>

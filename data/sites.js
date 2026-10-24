@@ -3,7 +3,7 @@
 window.PLANNER_SITES = [
  {
   "key": "bromyard",
- "recordName": "Bromyard",
+  "recordName": "Bromyard",
   "name": "Bromyard Avenue",
   "image": "img/bromyard-satellite.jpg",
   "imageW": 1246,
@@ -225,27 +225,6 @@ window.PLANNER_SITES = [
   ],
   "markers": [
    {
-    "type": "job",
-    "code": "J1",
-    "label": "Hedge along the Bromyard Avenue footpath - cut back",
-    "x": 187.0,
-    "y": 567.0
-   },
-   {
-    "type": "job",
-    "code": "J2",
-    "label": "Trees and hedge along the fenceline - cut back",
-    "x": 633.0,
-    "y": 81.0
-   },
-   {
-    "type": "job",
-    "code": "J3",
-    "label": "Large trees - felling (ask the council first)",
-    "x": 1019.0,
-    "y": 796.0
-   },
-   {
     "type": "shed",
     "code": "",
     "label": "Shed 7a",
@@ -311,16 +290,43 @@ window.PLANNER_SITES = [
   ],
   "jobs": [
    {
+    "id": "J1",
     "code": "J1",
-    "text": "Hedge along the Bromyard Avenue footpath - cut back. Plots bounded by it keep their stretch trimmed (rule 11g)."
+    "title": "Hedge along the Bromyard Avenue footpath - cut back",
+    "detail": "Plots bounded by the hedge keep their own stretch trimmed (rule 11g), so partly a plot matter for the Avenue side.",
+    "soon": "This season",
+    "near": "",
+    "x": 187.0,
+    "y": 567.0,
+    "by": "Claire Kavanagh",
+    "logged": "2026-10-24T14:30:00Z",
+    "status": "Logged"
    },
    {
+    "id": "J2",
     "code": "J2",
-    "text": "Trees and hedge along the fenceline - cut back."
+    "title": "Trees and hedge along the fenceline - cut back",
+    "detail": "",
+    "soon": "This season",
+    "near": "",
+    "x": 633.0,
+    "y": 81.0,
+    "by": "Claire Kavanagh",
+    "logged": "2026-10-24T14:30:00Z",
+    "status": "Logged"
    },
    {
+    "id": "J3",
     "code": "J3",
-    "text": "Large trees - felling. Ask the council first: likely their land, and big trees may be protected."
+    "title": "Large trees - felling",
+    "detail": "Ask the council first: likely their land, and big trees may be protected. Needs a contractor and money, so next year's budget.",
+    "soon": "Just noting it",
+    "near": "",
+    "x": 1019.0,
+    "y": 796.0,
+    "by": "Claire Kavanagh",
+    "logged": "2026-10-24T14:30:00Z",
+    "status": "Needs approval at the next committee meeting"
    }
   ]
  }

@@ -21,6 +21,17 @@ Nothing about plot holders lives here. The map knows plot numbers and where thin
 - **Sheds, water, gates, jobs:** the `markers` and `jobs` lists in the same file.
 - **A new site:** add an entry to the list with its own base image in `img/`.
 
+## How the page works
+
+The right-hand panel shows whatever was last tapped:
+
+- **A plot** - its card, with "Add / edit notes" (opens the check form for that plot).
+- **Jobs** (the chip) - the site's jobs, open ones first, each with a status. "Log a job" is also at the top of the page.
+- **A job** (tap its pin or its row) - what, where, how soon, who logged it, photo, the update history, and a form to set a new status with a note. Statuses: Logged, Needs approval at the next committee meeting, Approved - waiting to be done, Done, Not doing.
+- **Log a job** - what, a line more, how soon, near which plot, pin it on the map (tap), optional photo, your name.
+
+Jobs logged or updated on a phone are kept on that phone until the receiver is connected; then they are sent to the "Jobs" and "Job updates" tabs of the association sheet and read back, so every phone shows the same list. The three Bromyard jobs from the sketch are seeded in `data/sites.js`.
+
 ## Plot check form (`check.html`)
 
 The rep's form, with no sign-in. The map is the menu: tap a plot, "Check this plot", answer, send, back to the map for the next one. The name is remembered on the phone after the first entry. Questions: how it looks; shed? (if yes: good condition / needs roof repair / unsafe, needs removing); polytunnel?; water harvesting? (if yes: gutters, butt connected, butt not connected, other container); anything else to flag; a photo; a line. The page shrinks the photo on the phone (longest edge 1600 px, which also strips location data), then posts one message to a small Apps Script in the association's Google account. That script files the photo in Drive as `Plot checks / <Site> / Plot <n> / <date> <who>.jpg` and appends a row to the "Plot checks" sheet, so everything is filed the moment it arrives. Nothing to move afterwards.
