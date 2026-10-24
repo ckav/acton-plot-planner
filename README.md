@@ -21,6 +21,17 @@ Nothing about plot holders lives here. The map knows plot numbers and where thin
 - **Sheds, water, gates, jobs:** the `markers` and `jobs` lists in the same file.
 - **A new site:** add an entry to the list with its own base image in `img/`.
 
+## Plot check form (`check.html`)
+
+The rep's form, with no sign-in. It runs on any phone: who, site, plot (that site's numbers), how it looks, flags, a photo, a line. The page shrinks the photo on the phone (longest edge 1600 px, which also strips location data), then posts one message to a small Apps Script in the association's Google account. That script files the photo in Drive as `Plot checks / <Site> / Plot <n> / <date> <who>.jpg` and appends a row to the "Plot checks" sheet, so everything is filed the moment it arrives. Nothing to move afterwards.
+
+- Script: `apps-script/Code.gs`, with its set-up steps at the top. It needs the association account to authorise it once.
+- Connect: paste the web app URL into `data/config.js` as `submitUrl` and redeploy. Until then the form shows "not connected yet" and sends nothing.
+- A rep's own link pre-fills who and site: `check.html?who=Jon%20Snow&site=Bromyard`. Save it to the phone home screen.
+- Plot lists per site are in `data/plots.js`, from the association's record.
+
+Limits worth knowing: the web app URL is public, so anyone who finds it could post an entry (there is no login by design); the sheet shows who claimed to send it. Photos tied to plots are committee material: the Drive folder stays private to the committee.
+
 ## Deploy
 
 Hosted on Netlify (free tier). From this folder:
