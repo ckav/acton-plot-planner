@@ -329,5 +329,50 @@ window.PLANNER_SITES = [
     "status": "Needs approval at the next committee meeting"
    }
   ]
+ },
+ {
+  "key": "shop-strip",
+  "name": "Bromyard Avenue strip - south, with the shop",
+  "recordName": "",
+  "image": "img/shop-strip-holding.png",
+  "imageW": 1246,
+  "imageH": 900,
+  "imageCredit": "Holding image - no satellite base yet",
+  "status": "Holding image. Plots are drawn after the walk; which rep covers it is being confirmed.",
+  "holding": true,
+  "plots": [],
+  "paths": [],
+  "markers": [],
+  "jobs": []
+ },
+ {
+  "key": "north-strip",
+  "name": "Bromyard Avenue strip - north, towards the Garden Nursery",
+  "recordName": "",
+  "image": "img/north-strip-holding.png",
+  "imageW": 1246,
+  "imageH": 900,
+  "imageCredit": "Holding image - no satellite base yet",
+  "status": "Holding image. Plots are drawn after the walk; which rep covers it is being confirmed.",
+  "holding": true,
+  "plots": [],
+  "paths": [],
+  "markers": [],
+  "jobs": []
+ },
+ {
+  "key": "vale",
+  "name": "The Vale - off Oak Way",
+  "recordName": "",
+  "image": "img/vale-holding.png",
+  "imageW": 1246,
+  "imageH": 900,
+  "imageCredit": "Holding image - no satellite base yet",
+  "status": "Holding image. Plots are drawn after the walk; which rep covers it is being confirmed.",
+  "holding": true,
+  "plots": [],
+  "paths": [],
+  "markers": [],
+  "jobs": []
  }
 ];

@@ -74,11 +74,7 @@
   function buildControls() {
     var sel = $('site');
     sel.innerHTML = '';
-    sites.forEach(function (s, i) { var o = document.createElement('option'); o.value = i; o.textContent = s.name; sel.appendChild(o); });
-    ['Chestnuts', 'Perryn', 'The Vale'].forEach(function (n) {
-      if (sites.some(function (s) { return s.name === n; })) return;
-      var o = document.createElement('option'); o.disabled = true; o.textContent = n + ' - not drawn yet'; sel.appendChild(o);
-    });
+    sites.forEach(function (s, i) { var o = document.createElement('option'); o.value = i; o.textContent = s.name + (s.holding ? ' (holding)' : ''); sel.appendChild(o); });
     sel.addEventListener('change', function () { site = sites[+sel.value]; selected = null; jobId = null; mode = 'plot'; remoteJobs = null; loadRemote(); draw(); });
 
     var chips = $('layers');
@@ -186,6 +182,11 @@
     if (mode === 'job') return drawJob(panel);
     if (mode === 'logjob') return drawLogJob(panel);
     var p = site.plots.filter(function (x) { return x.id === selected; })[0];
+    if (site.holding) {
+      panel.innerHTML = '<div class="eyebrow">' + esc(site.name) + '</div><p class="empty">Holding image. No plots are drawn for this area yet.</p>' +
+        '<p class="note">What happens next: Claire walks it with the rep, draws the outlines on the printed map, and Claude traces them in - as for Bromyard. Which site this is on the record (and so which rep) is being confirmed. Jobs can be logged here already.</p>';
+      return;
+    }
     if (!p) {
       panel.innerHTML = '<div class="eyebrow">Plot card</div><p class="empty">Tap a plot on the map to see its card, or Jobs for the whole site.</p>' +
         '<p class="note">What the card will hold once the committee record is connected: holder, rent, last check, photos, flags, notes - all looked up by plot number, none of it stored on this page.</p>';
