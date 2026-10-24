@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walk sheet - Acton Gardening Association</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --ink: #1A1A1A; --muted: #5B5A54; --line: #BBB; --green: #1F5A3A; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { color: var(--ink); font: 12px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #F4F3EE; }
+  .screen { background: #fff; border-bottom: 1px solid #DAD8CF; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: 15px; }
+  .screen select, .screen button { font: inherit; min-height: 44px; padding: 8px 12px; border: 1px solid #DAD8CF; border-radius: 8px; background: #fff; }
+  .screen button { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; cursor: pointer; }
+  .screen a { color: var(--green); }
+  .page { background: #fff; width: 210mm; min-height: 297mm; margin: 12px auto; padding: 12mm 12mm 10mm; box-shadow: 0 1px 4px rgba(0,0,0,.15); page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+  .mapwrap { width: 100%; }
+  .mapwrap svg { width: 100%; height: auto; display: block; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid var(--line); padding: 4px 4px; vertical-align: top; font-size: 11px; }
+  th { background: #EDEBE3; text-align: left; font-weight: 600; }
+  td.plot { font-weight: 700; font-size: 13px; }
+  .tick { color: var(--muted); font-size: 10px; line-height: 1.5; }
+  tr { height: 11mm; }
+  .key { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .foot { font-size: 10px; color: var(--muted); margin-top: 6px; display: flex; justify-content: space-between; }
+  @media print {
+    body { background: #fff; }
+    .screen { display: none; }
+    .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+    @page { size: A4 portrait; margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="screen">
+  <label>Site <select id="site"></select></label>
+  <label>Date <input type="date" id="date" style="font: inherit; min-height: 44px; padding: 8px 12px; border: 1px solid #DAD8CF; border-radius: 8px"></label>
+  <button type="button" id="print">Print</button>
+  <span style="color:#5B5A54">Prints the map (where drawn) and a row per plot. <a href="index.html">Back to the map</a></span>
+</div>
+<div id="pages"></div>
+<script src="data/sites.js"></script>
+<script src="data/plots.js"></script>
+<script src="print.js"></script>
+</body>
+</html>

@@ -38,6 +38,10 @@ What a rep needs to do on their site, at a glance: plots, rent not paid in full,
 
 The counts come from `data/dashboard.js`, which is **numbers only**, made from the committee record by a script that lives in the association's private project folder (not in this repo). Nothing on this page names anyone. *Which* plots are behind a number is personal, so that list is not here: it will come from a private link per rep served by the receiver (next step, below).
 
+## Walk sheet (`print.html`)
+
+Printable, per site: the numbers-only map on page one where a site is drawn, then a table with a row per plot from the record and the answers to circle (looks, shed, greenhouse, polytunnel, water, flags, notes). For walking a site on paper and filing afterwards. A4 portrait; the Print button uses the browser's print dialog.
+
 ## Plot check form (`check.html`)
 
 The rep's form, with no sign-in. The map is the menu: tap a plot, "Check this plot", answer, send, back to the map for the next one. The name is remembered on the phone after the first entry. Questions: how it looks; shed? (if yes: good condition / needs roof repair / unsafe, needs removing); greenhouse?; polytunnel?; water harvesting? (if yes: gutters, butt connected, butt not connected, other container); anything else to flag; a photo; a line.
