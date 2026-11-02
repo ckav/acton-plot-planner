@@ -1,7 +1,10 @@
 /* Plot planner: draws one site's map from data/sites.js. The right-hand panel shows whatever was
-   last tapped: a plot (with "Add / edit notes"), the site's jobs, one job (with a status update),
-   or the "Log a job" form. Jobs are kept on this phone until the receiver is connected, then they
-   go to the association's sheet and are read back from it. No frameworks, no personal data.
+   last tapped: a plot (with "Add / edit notes"), the site's jobs, one job (its row: status, who, money,
+   blocked by, expected by, latest, then detail and photo, with "Edit this job" and "Move pin"), or the
+   "Log a job" form. Jobs are kept on this phone until the receiver is connected, then they go to the
+   association's sheet and are read back from it. Edits go as one job-edit message with only the fields
+   that changed (jobedit.js); with no connection they wait on the phone and the row says "Not sent yet".
+   No frameworks, no personal data.
    The plot card shows the plot's latest check (the sheet's Current tab) only to someone whose phone
    holds a rep key, from opening a rep link (?key=...) once. With the members' password (gate.js) it shows
    the plot's condition only, and only if the committee has switched that on in the sheet's Settings tab.
@@ -13,8 +16,9 @@
    pinch, mouse wheel) or ?plot= changes it; draw() reads it and never resets it. A pointer that moves more
    than 8 px before it lifts is a drag, and the click it would cause is swallowed, so a pan never selects a
    plot or moves a job pin. index.html?site=Chestnuts&plot=12 opens with that plot's card and the map zoomed
-   to about 3x on it. Jobs pins show while the jobs list, a job or "Log a job" is open; gates belong to the
-   Paths layer. */
+   to about 3x on it; index.html?site=Bromyard&job=J3 opens that job. Jobs pins show while the jobs list, a
+   job or "Log a job" is open; gates belong to the Paths layer. A tap on the map is turned into image pixels
+   through the SVG's own screen matrix (toMap), so a pin lands under the finger at any zoom or pan. */
 (function () {
   var NS = 'http://www.w3.org/2000/svg';
   var sites = window.PLANNER_SITES || [];
@@ -28,22 +32,27 @@
     tank: { color: '#1D4ED8', layer: 'water' },
     gate: { color: '#141413', layer: 'paths' }
   };
-  var STATUSES = ['Logged', 'Needs approval at the next committee meeting', 'Approved - waiting to be done', 'Done', 'Not doing'];
-  var STATUS_STYLE = { 'Logged': 'st-logged', 'Needs approval at the next committee meeting': 'st-approval', 'Approved - waiting to be done': 'st-approved', 'Done': 'st-done', 'Not doing': 'st-no' };
-  var SOON = ['Now - someone could get hurt', 'This season', 'Next work morning', 'Just noting it'];
+  var J = window.AGA_JOBS;   // statuses, the edit form and the offline queue, shared with the job board (jobedit.js)
+  var SOON = J.SOON;
 
   var site = sites[0];
   var mode = 'plot';        // plot | jobs | job | logjob
   var selected = null;      // plot id
   var jobId = null;         // selected job id
+  var jobSub = 'view';      // in mode 'job': view | edit | move
+  var movePin = null;       // move: where the next Save pin would put it, image px, or null until the map is tapped
+  var notice = null;        // { id, text }: one green line at the top of that job's panel until the next edit or move
   var placing = false;      // log-a-job: next tap on the map places the pin
   var draft = { x: null, y: null, photo: null };
   var remoteJobs = null;
+  var wantJob = null;       // ?job=<id>: open that job once the jobs are in
   var view = { x: 0, y: 0, w: 1, h: 1 };   // the viewBox, image px (see the note at the top)
   var viewIndex = 0;                        // which section chip is lit; -1 after a gesture or zoom button
   var MAX_ZOOM = 6;                         // times the whole-site fit
   var anim = null;                          // requestAnimationFrame id while a chip's move is animating
   var showJobs = function () { return mode === 'jobs' || mode === 'job' || mode === 'logjob'; };
+  var moving = function () { return mode === 'job' && jobSub === 'move'; };
+  var wantsTap = function () { return placing || mode === 'logjob' || moving(); };   // the next tap on the map places a pin
 
   var $ = function (id) { return document.getElementById(id); };
   var el = function (name, attrs, text) {
@@ -65,42 +74,49 @@
   var cardOpen = null;   // the pill on the plot card whose words are showing   // site|plot -> { state: 'loading' | 'ok' | 'none' | 'error', plot }
   var when = function (iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); };
 
-  // ---- jobs: seed from the data file, plus this phone's additions, plus the sheet when connected
+  // ---- jobs: seed from the data file, plus this phone's additions, plus the sheet when connected (the sheet's
+  // row wins by id), with any edit still waiting on this phone laid over the top (jobedit.js).
   function allJobs() {
     var byId = {};
-    (site.jobs || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Logged', updates: [] }, j); });
-    (store('jobs-' + site.key) || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Logged', updates: [] }, byId[j.id] || {}, j); });
-    (remoteJobs || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Logged', updates: [] }, byId[j.id] || {}, j); });
-    (store('updates-' + site.key) || []).forEach(function (u) {
-      var j = byId[u.id]; if (!j) return;
-      if (!j.updates.some(function (x) { return x.at === u.at; })) { j.updates = j.updates.concat([u]); }
-    });
-    return Object.keys(byId).map(function (k) {
-      var j = byId[k];
-      j.updates = (j.updates || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; });
-      if (j.updates.length) j.status = j.updates[j.updates.length - 1].status || j.status;
-      return j;
-    }).sort(function (a, b) { return (a.logged || '') < (b.logged || '') ? -1 : 1; });
+    (site.jobs || []).forEach(function (j) { byId[j.id] = Object.assign({}, j); });
+    (store('jobs-' + site.key) || []).forEach(function (j) { byId[j.id] = Object.assign({}, byId[j.id] || {}, j); });
+    (remoteJobs || []).forEach(function (j) { byId[j.id] = Object.assign({}, byId[j.id] || {}, j); });
+    var list = Object.keys(byId).map(function (k) { return byId[k]; });
+    return J.mergeEdits(list, site.key).sort(function (a, b) { return (a.logged || '') < (b.logged || '') ? -1 : 1; });
   }
+  function jobById(id) { return allJobs().filter(function (x) { return x.id === id; })[0]; }
+  function siteName() { return site.recordName || site.name; }
   function saveLocal(key, item) { var list = store(key + '-' + site.key) || []; list.push(item); store(key + '-' + site.key, list); }
   function denied(j) { if (j && j.error === 'password') AGA_GATE.relock(); return j; }
   function post(body) {
     if (!CONFIG.submitUrl) return Promise.resolve({ ok: false, offline: true });
-    body = Object.assign({ pw: AGA_GATE.pw() }, body);
+    body = Object.assign({ pw: AGA_GATE.pw(), key: AGA_GATE.key() }, body);   // a rep link has a key and no password
     return fetch(CONFIG.submitUrl, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(denied).catch(function () { return { ok: false }; });
   }
   function loadRemote() {
-    if (!CONFIG.submitUrl) return;
-    fetch(CONFIG.submitUrl + '?action=jobs&site=' + encodeURIComponent(site.recordName || site.name) + AGA_GATE.auth())
+    if (!CONFIG.submitUrl) { if (wantJob) openWantedJob(); return; }
+    var key = site.key;
+    fetch(CONFIG.submitUrl + '?action=jobs&site=' + encodeURIComponent(siteName()) + AGA_GATE.auth())
       .then(function (r) { return r.json(); })
       .then(denied)
-      .then(function (j) { if (j && j.ok) { remoteJobs = j.jobs || []; draw(); } })
+      .then(function (j) { if (j && j.ok && key === site.key) { remoteJobs = j.jobs || []; J.forget(key); if (wantJob) openWantedJob(); draw(); } })
       .catch(function () {});
+  }
+  // Edits that waited on this phone: send them when the page opens with a signal, then read the sheet back.
+  function sendWaiting() {
+    if (!CONFIG.submitUrl || !J.queued(site.key).length || navigator.onLine === false) return;
+    J.flush(site.key).then(function (r) { if (r.sent) loadRemote(); else draw(); });
+  }
+  // ?job=<id>: open that job and zoom in on its pin, once it is in the list.
+  function openWantedJob() {
+    var j = jobById(wantJob); if (!j) return;
+    wantJob = null; jobId = j.id; mode = 'job'; jobSub = 'view';
+    if (j.x != null) { var whole = fitWhole(); setView({ x: j.x - whole.w / 6, y: j.y - whole.h / 6, w: whole.w / 3, h: whole.h / 3 }); }
   }
 
   // ---- controls
   function buildControls() {
-    $('map').addEventListener('click', function (ev) { if (placing || mode === 'logjob') placeAt(ev); });
+    $('map').addEventListener('click', function (ev) { if (wantsTap()) placeAt(ev); });
     $('card').addEventListener('click', function (ev) {
       var b = ev.target.closest('.pst'); if (!b) return;
       var n = b.getAttribute('data-item'); cardOpen = cardOpen === n ? null : n; drawPanel();
@@ -121,9 +137,9 @@
     });
     var jb = document.createElement('button');
     jb.type = 'button'; jb.className = 'chip'; jb.id = 'jobsChip'; jb.textContent = 'Jobs';
-    jb.addEventListener('click', function () { mode = showJobs() ? 'plot' : 'jobs'; placing = false; draw(); });
+    jb.addEventListener('click', function () { mode = showJobs() ? 'plot' : 'jobs'; placing = false; jobSub = 'view'; draw(); });
     chips.appendChild(jb);
-    $('logjob').addEventListener('click', function () { mode = 'logjob'; placing = false; draft = { x: null, y: null, photo: null }; draw(); });
+    $('logjob').addEventListener('click', function () { mode = 'logjob'; placing = false; jobSub = 'view'; draft = { x: null, y: null, photo: null }; draw(); });
 
     var centre = function () { return { x: view.x + view.w / 2, y: view.y + view.h / 2 }; };
     $('zoomIn').addEventListener('click', function () { var c = centre(); zoomAt(1.5, c.x, c.y); });
@@ -133,8 +149,8 @@
   }
 
   function setSite(s) {
-    site = s; selected = null; jobId = null; mode = 'plot'; placing = false; remoteJobs = null;
-    sizeMap(); goToView(0, false); loadRemote(); draw();
+    site = s; selected = null; jobId = null; mode = 'plot'; jobSub = 'view'; movePin = null; placing = false; remoteJobs = null;
+    sizeMap(); goToView(0, false); loadRemote(); draw(); sendWaiting();
   }
 
   // ---- view: which part of the image is on show
@@ -295,7 +311,7 @@
       g.appendChild(r);
       if (layers.numbers) g.appendChild(el('text', { x: p.cx, y: p.cy, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': p.kind === 'half' ? 34 : 42, 'font-weight': 700, 'font-family': 'system-ui, sans-serif', fill: '#FFFFFF', stroke: 'rgba(20,20,20,0.85)', 'stroke-width': 8, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, p.id));
       var pick = function (ev) {
-        if (placing || mode === 'logjob') { ev.stopPropagation(); if (ev.clientX != null) { draft.near = p.id.toUpperCase(); placeAt(ev); } return; }
+        if (wantsTap()) { ev.stopPropagation(); if (ev.clientX != null) { if (mode === 'logjob') draft.near = p.id.toUpperCase(); placeAt(ev); } return; }
         if (selected === p.id) { var k = (site.recordName || site.name) + '|' + p.id.toUpperCase(); if (plotInfo[k] && plotInfo[k].state !== 'loading') delete plotInfo[k]; }
         if (selected !== p.id) cardOpen = null;
         selected = p.id; mode = 'plot'; draw();
@@ -312,9 +328,10 @@
     });
 
     if (showJobs()) allJobs().forEach(function (j) {
+      var isSel = mode === 'job' && jobId === j.id;
+      if (isSel && moving() && movePin) { svg.appendChild(pin(movePin.x, movePin.y, '#B45309', (j.code ? j.code + ' ' : '') + j.title, true, null)); return; }   // the pin on the move: no handler, so a tap on it reaches the map
       if (j.x == null) return;
-      var done = j.status === 'Done' || j.status === 'Not doing';
-      var g = pin(j.x, j.y, done ? '#8E8C82' : '#B45309', (j.code ? j.code + ' ' : '') + j.title, mode === 'job' && jobId === j.id, function () { jobId = j.id; mode = 'job'; draw(); });
+      var g = pin(j.x, j.y, J.done(j) ? '#8E8C82' : '#B45309', (j.code ? j.code + ' ' : '') + j.title, isSel, function () { jobId = j.id; mode = 'job'; jobSub = 'view'; movePin = null; draw(); });
       svg.appendChild(g);
     });
     if (mode === 'logjob' && draft.x != null) svg.appendChild(pin(draft.x, draft.y, '#B45309', 'New job', true, null));
@@ -329,7 +346,8 @@
       '<span class="key"><span class="dot" style="background:#7C4A1E"></span>Shed</span>' +
       '<span class="key"><span class="dot" style="background:#1D4ED8"></span>Tap or tank</span>' +
       (layers.paths ? '<span class="key"><span class="dot" style="background:#141413"></span>Gate</span>' : '');
-    $('status').textContent = mode === 'logjob' ? (draft.x == null ? 'Tap the map where the job is.' : 'Pin placed. Tap the map again to move it.') : site.status;
+    $('status').textContent = mode === 'logjob' ? (draft.x == null ? 'Tap the map where the job is.' : 'Pin placed. Tap the map again to move it.')
+      : moving() ? (movePin ? 'Pin moved. Tap the map again to adjust it, or Save pin.' : 'Tap the map where the pin should be.') : site.status;
     $('credit').textContent = site.imageCredit + '. Demo for the committee - numbers only, no personal data.';
   }
 
@@ -340,14 +358,16 @@
     var flip = x > site.imageW * 0.72;
     if (label.length > 34) label = label.slice(0, 32) + '...';
     g.appendChild(el('text', { x: flip ? x - 20 : x + 20, y: y, 'text-anchor': flip ? 'end' : 'start', 'dominant-baseline': 'central', 'font-size': 24, 'font-weight': 600, 'font-family': 'system-ui, sans-serif', fill: '#1A1A1A', stroke: '#FFFFFF', 'stroke-width': 7, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, label));
-    if (onClick) { g.addEventListener('click', function (ev) { ev.stopPropagation(); if (placing || mode === 'logjob') { placeAt(ev); return; } onClick(); }); g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onClick(); } }); }
+    if (onClick) { g.addEventListener('click', function (ev) { ev.stopPropagation(); if (wantsTap()) { placeAt(ev); return; } onClick(); }); g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onClick(); } }); }
     else g.setAttribute('pointer-events', 'none');
     return g;
   }
 
+  // A tap on the map while placing: image px from the client point, the same conversion at any zoom or pan.
   function placeAt(ev) {
-    var p = toMap(ev.clientX, ev.clientY);
-    draft.x = Math.round(p.x); draft.y = Math.round(p.y);
+    var p = toMap(ev.clientX, ev.clientY), x = Math.round(p.x), y = Math.round(p.y);
+    if (moving()) { movePin = { x: x, y: y }; draw(); return; }
+    draft.x = x; draft.y = y;
     placing = false; draw();
   }
 
@@ -413,60 +433,78 @@
       .then(function () { if (mode === 'plot') drawPanel(); });
   }
 
-  function statusPill(s) { return '<span class="st ' + (STATUS_STYLE[s] || 'st-logged') + '">' + esc(s) + '</span>'; }
+  var statusPill = J.statusPill;
 
   function drawJobs(panel) {
     var jobs = allJobs();
-    var open = jobs.filter(function (j) { return j.status !== 'Done' && j.status !== 'Not doing'; });
-    var closed = jobs.filter(function (j) { return j.status === 'Done' || j.status === 'Not doing'; });
+    var open = jobs.filter(function (j) { return !J.done(j); });
+    var closed = jobs.filter(J.done);
     var row = function (j) {
       return '<li><button type="button" class="jobrow" data-id="' + esc(j.id) + '">' +
-        '<span class="jcode' + ((j.status === 'Done' || j.status === 'Not doing') ? ' grey' : '') + '">' + esc(j.code || '•') + '</span>' +
-        '<span class="jtext"><span class="jtitle">' + esc(j.title) + '</span>' + statusPill(j.status) + '</span></button></li>';
+        '<span class="jcode' + (J.done(j) ? ' grey' : '') + '">' + esc(j.code || '•') + '</span>' +
+        '<span class="jtext"><span class="jtitle">' + esc(j.title) + '</span><span>' + statusPill(j.status) +
+        (J.urgent(j) && !J.done(j) ? ' ' + J.pill('Urgent', 'st-urgent') : '') + (j.unsent ? ' ' + J.pill('Not sent yet', 'st-local') : '') + '</span></span></button></li>';
     };
     panel.innerHTML = '<div class="eyebrow">Jobs - ' + esc(site.name) + ', whole site</div>' +
       '<p class="sub">Things that need doing on the site, not on one plot. Tap one for details or to update it.</p>' +
       (open.length ? '<ol class="joblist">' + open.map(row).join('') + '</ol>' : '<p class="empty">No open jobs.</p>') +
-      (closed.length ? '<div class="eyebrow" style="margin-top:14px">Done or dropped</div><ol class="joblist">' + closed.map(row).join('') + '</ol>' : '') +
+      (closed.length ? '<div class="eyebrow" style="margin-top:14px">Done or not doing</div><ol class="joblist">' + closed.map(row).join('') + '</ol>' : '') +
       '<button type="button" class="btn" id="logjob2" style="margin-top:14px">Log a job</button>' +
+      '<a class="btn ghost" href="jobs.html" style="margin-top:8px">Job board - all sites</a>' +
       (CONFIG.submitUrl ? '' : '<p class="note">Jobs logged here are saved on this phone only until the receiver is connected; then they go to the association sheet and everyone sees them.</p>');
-    Array.prototype.forEach.call(panel.querySelectorAll('.jobrow'), function (b) { b.addEventListener('click', function () { jobId = b.getAttribute('data-id'); mode = 'job'; draw(); }); });
+    Array.prototype.forEach.call(panel.querySelectorAll('.jobrow'), function (b) { b.addEventListener('click', function () { jobId = b.getAttribute('data-id'); mode = 'job'; jobSub = 'view'; movePin = null; draw(); }); });
     $('logjob2').addEventListener('click', function () { mode = 'logjob'; draft = { x: null, y: null, photo: null }; draw(); });
   }
 
+  // One job: its row as the committee keeps it, then "Edit this job" (the shared form, only changed fields are
+  // sent) and "Move pin" (the next tap on the map, then Save pin sends x and y alone).
   function drawJob(panel) {
-    var j = allJobs().filter(function (x) { return x.id === jobId; })[0];
-    if (!j) { mode = 'jobs'; return drawJobs(panel); }
-    var plotNear = j.near ? 'Near plot ' + esc(j.near) : (j.x != null ? 'Pinned on the map' : 'Not placed');
-    panel.innerHTML =
-      '<button type="button" class="linkbtn" id="backJobs">&larr; All jobs</button>' +
-      '<div class="eyebrow">Job ' + esc(j.code || '') + ' ' + statusPill(j.status) + '</div>' +
-      '<h2 class="jobh">' + esc(j.title) + '</h2>' +
-      (j.detail ? '<p>' + esc(j.detail) + '</p>' : '') +
-      '<dl><div><dt>Where</dt><dd>' + plotNear + '</dd></div><div><dt>How soon</dt><dd>' + esc(j.soon || 'Not said') + '</dd></div>' +
-      '<div><dt>Logged</dt><dd>' + esc((j.by ? j.by + ', ' : '') + (when(j.logged) || 'date unknown')) + '</dd></div>' +
-      '<div><dt>Photo</dt><dd>' + (j.photo ? '<a href="' + esc(j.photo) + '" target="_blank" rel="noopener">Open</a>' : 'None') + '</dd></div></dl>' +
-      (j.updates && j.updates.length ? '<div class="eyebrow">Updates</div><ul class="updates">' + j.updates.map(function (u) {
-        return '<li><span class="sub">' + esc(when(u.at)) + (u.by ? ' - ' + esc(u.by) : '') + '</span> ' + statusPill(u.status) + (u.note ? '<div>' + esc(u.note) + '</div>' : '') + '</li>';
-      }).join('') + '</ul>' : '') +
-      '<form id="upd" class="updform"><div class="eyebrow">Update this job</div>' +
-      '<label>Status<select id="updStatus">' + STATUSES.map(function (s) { return '<option' + (s === j.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
-      '<label>Note (optional)<input type="text" id="updNote" placeholder="e.g. done on the Nov work morning"></label>' +
-      '<label>Your name<input type="text" id="updWho" value="' + esc(who()) + '" placeholder="Who is updating"></label>' +
-      '<button type="submit" class="btn" id="updSave">Save update</button><div id="updMsg" class="msg hidden" role="status"></div>' +
-      '<button type="button" class="btn ghost hidden" id="updBack">&larr; Back to all jobs</button></form>';
-    $('backJobs').addEventListener('click', function () { mode = 'jobs'; draw(); });
-    $('upd').addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var by = $('updWho').value.trim(); if (!by) { msg('updMsg', 'err', 'Put your name so the record shows who updated it.'); return; }
-      store('who', by);
-      var u = { id: j.id, at: new Date().toISOString(), by: by, status: $('updStatus').value, note: $('updNote').value.trim() };
-      $('updSave').disabled = true; $('updSave').textContent = 'Saving...';
-      post(Object.assign({ kind: 'job-status', site: site.recordName || site.name }, u)).then(function (r) {
-        if (r && r.ok) { saveLocal('updates', u); draw(); afterSaved('Saved: ' + u.status + '.'); return; }
-        $('updSave').disabled = false; $('updSave').textContent = 'Save update';
-        msg('updMsg', 'err', 'Not saved - no connection, or the planner could not reach the sheet. Try again in a moment.');
+    var j = jobById(jobId);
+    if (!j) {
+      if (CONFIG.submitUrl && remoteJobs === null) { panel.innerHTML = '<p class="empty">Loading the job...</p>'; return; }
+      mode = 'jobs'; return drawJobs(panel);
+    }
+    var head = '<button type="button" class="linkbtn" id="backJobs">&larr; All jobs</button>' +
+      '<div class="eyebrow">Job ' + esc(j.code || '') + '</div><h2 class="jobh">' + esc(j.title) + '</h2>' +
+      (notice && notice.id === j.id && jobSub === 'view' ? '<div class="jobmsg ok" role="status">' + esc(notice.text) + '</div>' : '');
+    if (jobSub === 'move') {
+      panel.innerHTML = head +
+        '<p class="jobdetail">' + (movePin ? 'Pin moved. Tap the map again to adjust it, then Save pin.' : 'Tap the map where the pin should be. Anywhere on the map will do - it need not be on a plot.') + '</p>' +
+        '<div class="jobacts"><button type="button" class="btn" id="pinSave"' + (movePin ? '' : ' disabled') + '>Save pin</button><button type="button" class="btn ghost" id="pinCancel">Cancel</button></div>' +
+        '<div id="pinMsg" class="jobmsg hidden" role="status"></div>';
+      $('backJobs').addEventListener('click', function () { jobSub = 'view'; movePin = null; mode = 'jobs'; draw(); });
+      $('pinCancel').addEventListener('click', function () { jobSub = 'view'; movePin = null; draw(); });
+      $('pinSave').addEventListener('click', function () {
+        if (!movePin) return;
+        var body = { kind: 'job-edit', id: j.id, site: siteName(), by: who(), x: movePin.x, y: movePin.y };
+        $('pinSave').disabled = true; $('pinSave').textContent = 'Saving...';
+        J.send(body, site.key).then(function (r) {
+          if (r.ok) { notice = { id: j.id, text: r.queued ? J.savedText(r) : 'Pin saved.' }; jobSub = 'view'; movePin = null; draw(); if (!r.queued) loadRemote(); return; }
+          $('pinSave').disabled = false; $('pinSave').textContent = 'Save pin';
+          var m = $('pinMsg'); m.className = 'jobmsg err'; m.textContent = 'Not saved - the sheet did not accept it (' + r.error + '). Try again in a moment.';
+        });
       });
+      return;
+    }
+    if (jobSub === 'edit') {
+      panel.innerHTML = head + J.editForm(j);
+      $('backJobs').addEventListener('click', function () { jobSub = 'view'; mode = 'jobs'; draw(); });
+      J.wireEditForm(panel, j, { by: who(), siteName: siteName(), siteKey: site.key,
+        onCancel: function () { jobSub = 'view'; draw(); },
+        onSaved: function (r) { notice = { id: j.id, text: J.savedText(r) }; jobSub = 'view'; draw(); if (!r.queued) loadRemote(); } });
+      return;
+    }
+    var plotNear = j.near ? 'Near plot ' + esc(j.near) : (j.x != null ? 'Pinned on the map' : 'No pin yet');
+    panel.innerHTML = head + J.fields(j) +
+      '<p class="sub">' + plotNear + '. How soon: ' + esc(j.soon || 'not said') + '. Logged ' + esc(when(j.logged) || 'date unknown') + (j.by ? ' by ' + esc(j.by) : '') + '.</p>' +
+      (j.unsent && CONFIG.submitUrl ? '<div class="jobmsg warn">A change to this job is waiting on this phone. <button type="button" class="linkbtn" id="sendNow" style="padding:0">Send it now</button></div>' : '') +
+      '<div class="jobacts"><button type="button" class="btn" id="jobEditBtn">Edit this job</button><button type="button" class="btn ghost" id="jobMoveBtn">' + (j.x != null ? 'Move pin' : 'Put a pin on the map') + '</button></div>';
+    $('backJobs').addEventListener('click', function () { mode = 'jobs'; notice = null; draw(); });
+    $('jobEditBtn').addEventListener('click', function () { jobSub = 'edit'; notice = null; drawPanel(); });
+    $('jobMoveBtn').addEventListener('click', function () { jobSub = 'move'; movePin = null; notice = null; draw(); });
+    if ($('sendNow')) $('sendNow').addEventListener('click', function () {
+      $('sendNow').disabled = true; $('sendNow').textContent = 'Sending...';
+      J.flush(site.key).then(function (r) { notice = { id: j.id, text: r.sent ? 'Sent.' : r.errors.length ? 'The sheet did not accept it (' + r.errors[0] + ').' : 'Still no connection. It will try again later.' }; if (r.sent) loadRemote(); else draw(); });
     });
   }
 
@@ -479,7 +517,7 @@
       '<form id="logf" class="updform">' +
       '<label>What needs doing<input type="text" id="ljTitle" placeholder="e.g. Hedge by the gate - cut back" required value="' + esc(draft.title || '') + '"></label>' +
       '<label>A bit more, if useful<input type="text" id="ljDetail" placeholder="Optional" value="' + esc(draft.detail || '') + '"></label>' +
-      '<label>How soon<select id="ljSoon">' + SOON.map(function (s) { return '<option' + (draft.soon === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
+      '<label>How soon<select id="ljSoon">' + SOON.map(function (s) { return '<option' + ((draft.soon || 'This season') === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
       '<label>Where<select id="ljNear">' + plotOpts + '</select></label>' +
       '<button type="button" class="btn ghost" id="ljPlace">' + (draft.x != null ? 'Pin placed - tap the map to move it' : 'Tap the map to place the pin') + '</button>' +
       '<label>Photo (optional)<input type="file" id="ljPhoto" accept="image/*"></label><span id="ljPhotoNote" class="sub"></span>' +
@@ -501,7 +539,7 @@
       store('who', by);
       var n = allJobs().length + 1;
       var j = { id: 'J-' + Date.now().toString(36), code: 'J' + n, title: title, detail: $('ljDetail').value.trim(), soon: $('ljSoon').value,
-        near: $('ljNear').value, x: draft.x, y: draft.y, by: by, logged: new Date().toISOString(), status: 'Logged', updates: [] };
+        near: $('ljNear').value, x: draft.x, y: draft.y, by: by, logged: new Date().toISOString(), status: 'Pending', money: 'No' };
       var body = Object.assign({ kind: 'job', site: site.recordName || site.name, photo: draft.photo ? draft.photo.base64 : '', photoType: 'image/jpeg' }, j);
       var save = $('logf').querySelector('button[type=submit]');
       save.disabled = true; save.textContent = 'Saving...';
@@ -509,8 +547,9 @@
         if (!CONFIG.submitUrl || (r && r.ok)) {
           if (r && r.photo) j.photo = r.photo;
           saveLocal('jobs', j);
-          jobId = j.id; mode = 'job'; placing = false; draw();
-          afterSaved(CONFIG.submitUrl ? 'Job saved.' : 'Job saved on this phone.');
+          jobId = j.id; mode = 'job'; jobSub = 'view'; placing = false;
+          notice = { id: j.id, text: (CONFIG.submitUrl ? 'Job saved.' : 'Job saved on this phone.') + ' Thank you.' };
+          draw();
           return;
         }
         save.disabled = false; save.textContent = 'Save job';
@@ -519,13 +558,6 @@
     });
   }
 
-  // After a job or update is saved: a green confirmation and a way back to the list, in place of the form.
-  function afterSaved(text) {
-    msg('updMsg', 'ok', text + ' Thank you.');
-    $('upd').querySelectorAll('label, #updSave').forEach(function (e) { e.classList.add('hidden'); });
-    $('updBack').classList.remove('hidden');
-    $('updBack').addEventListener('click', function () { mode = 'jobs'; draw(); });
-  }
 
   function msg(id, kind, text) { var m = $(id); m.className = 'msg ' + kind; m.textContent = text; }
 
@@ -547,8 +579,9 @@
   }
 
   if (site) {
-    // ?site=<record name> picks the site; ?plot=<id> opens that plot's card zoomed to about 3x on it.
-    var q = new URLSearchParams(location.search), qSite = q.get('site'), qPlot = q.get('plot');
+    // ?site=<record name> picks the site; ?plot=<id> opens that plot's card zoomed to about 3x on it;
+    // ?job=<id> (from the job board) opens that job, zoomed on its pin.
+    var q = new URLSearchParams(location.search), qSite = q.get('site'), qPlot = q.get('plot'), qJob = q.get('job');
     if (qSite) {
       var match = sites.filter(function (s) { return [s.recordName, s.name, s.key].some(function (n) { return n && n.toLowerCase() === qSite.trim().toLowerCase(); }); })[0];
       if (match) site = match;
@@ -560,6 +593,7 @@
       var want = site.plots.filter(function (p) { return p.id.toLowerCase() === qPlot.trim().toLowerCase(); })[0];
       if (want) { selected = want.id; var whole = fitWhole(); setView({ x: want.cx - whole.w / 6, y: want.cy - whole.h / 6, w: whole.w / 3, h: whole.h / 3 }); }
     }
-    draw(); loadRemote();
+    if (qJob) { wantJob = qJob.trim(); mode = 'job'; jobId = wantJob; openWantedJob(); }
+    draw(); loadRemote(); sendWaiting();
   }
 })();

@@ -290,9 +290,9 @@ window.PLANNER_SITES = [
   }
  ],
  "jobs": [
-   {"id": "J1", "code": "J1", "title": "Hedge along the Bromyard Avenue footpath - cut back", "detail": "Plots bounded by the hedge keep their own stretch trimmed (rule 11g), so partly a plot matter for the Avenue side.", "soon": "This season", "near": "", "x": 187.0, "y": 567.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Logged"},
-   {"id": "J2", "code": "J2", "title": "Trees and hedge along the fenceline - cut back", "detail": "Pin position to confirm on the walk.", "soon": "This season", "near": "", "x": 633.0, "y": 81.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Logged"},
-   {"id": "J3", "code": "J3", "title": "Large trees - felling", "detail": "Ask the council first: likely their land, and big trees may be protected. Needs a contractor and money, so next year's budget. Pin position to confirm on the walk.", "soon": "Just noting it", "near": "", "x": 1019.0, "y": 796.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Needs approval at the next committee meeting"}
+   {"id": "J1", "code": "J1", "title": "Hedge along the Bromyard Avenue footpath - cut back", "detail": "Plots bounded by the hedge keep their own stretch trimmed (rule 11g), so partly a plot matter for the Avenue side.", "soon": "This season", "near": "", "x": 187.0, "y": 567.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Pending", "money": "No"},
+   {"id": "J2", "code": "J2", "title": "Trees and hedge along the fenceline - cut back", "detail": "Pin position to confirm on the walk.", "soon": "This season", "near": "", "x": 633.0, "y": 81.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Pending", "money": "No"},
+   {"id": "J3", "code": "J3", "title": "Large trees - felling", "detail": "Ask the council first: likely their land, and big trees may be protected. Needs a contractor and money, so next year's budget. Pin position to confirm on the walk.", "soon": "Just noting it", "near": "", "x": 1019.0, "y": 796.0, "by": "Claire Kavanagh", "logged": "2026-10-24T14:30:00Z", "status": "Pending", "money": "Needs approval", "blockedBy": "Council to confirm whose trees they are"}
   ],
  "views": [
   {

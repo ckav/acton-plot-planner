@@ -22,8 +22,8 @@
   .badge { font-size: 12px; font-weight: 600; background: var(--amber-soft); color: #5C3D00; padding: 3px 9px; border-radius: 10px; }
   main { padding: 16px 0 32px; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
-  .controls label { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-  select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-height: 44px; }
+  .controls label { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 8px; max-width: 100%; }
+  select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-height: 44px; min-width: 0; max-width: 100%; }   /* a long site name must not push a phone screen sideways */
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9C7BD; background: var(--panel); color: var(--ink); font: 600 14px system-ui, sans-serif; cursor: pointer; }
   .chip[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; }
@@ -69,14 +69,7 @@
   .jcode.grey { background: #8E8C82; }
   .jtext { display: flex; flex-direction: column; gap: 4px; }
   .jtitle { font-weight: 600; }
-  .st { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #EDEBE3; color: var(--muted); width: max-content; }
-  .st-logged { background: var(--amber-soft); color: #8A5A00; }
-  .st-approval { background: #E8E3F7; color: #4C2A85; }
-  .st-approved { background: #DCEBFA; color: #1D4ED8; }
-  .st-done { background: var(--green-soft); color: var(--green); }
-  .st-no { background: #EDEBE3; color: var(--muted); }
-  .updates { list-style: none; padding: 0; margin: 6px 0 14px; display: grid; gap: 8px; font-size: 14px; }
-  .updates li { border-left: 3px solid var(--line); padding-left: 10px; }
+  /* Job status pills, the job's fields and the edit form are styled by jobedit.js, shared with the job board. */
   .updform { display: grid; gap: 10px; margin-top: 10px; }
   .updform label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
   .grid > * { min-width: 0; }
@@ -106,7 +99,7 @@
     <h1>Plot planner</h1>
     <span class="sub">Acton Gardening Association</span>
     <span class="badge">Demo</span>
-    <nav style="margin-left:auto; display:flex; gap:14px; font-size:14px; font-weight:600"><a href="dashboard.html" style="color: var(--green)">Dashboard</a><a href="check.html" style="color: var(--green)">Plot check</a><a href="print.html" style="color: var(--green)">Walk sheet</a></nav>
+    <nav style="margin-left:auto; display:flex; flex-wrap:wrap; gap:14px; font-size:14px; font-weight:600"><a href="jobs.html" style="color: var(--green)">Job board</a><a href="dashboard.html" style="color: var(--green)">Dashboard</a><a href="check.html" style="color: var(--green)">Plot check</a><a href="print.html" style="color: var(--green)">Walk sheet</a></nav>
   </div>
 </header>
 <main>
@@ -139,6 +132,7 @@
 <footer><div class="wrap" id="credit"></div></footer>
 <script src="data/sites.js"></script>
 <script src="pills.js"></script>
+<script src="jobedit.js"></script>
 <script src="planner.js"></script>
 </body>
 </html>

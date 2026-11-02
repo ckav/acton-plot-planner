@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job board - Acton Gardening Association</title>
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #F4F3EE; --panel: #FFFFFF; --line: #DAD8CF; --ink: #1A1A1A; --muted: #5B5A54;
+    --green: #1F5A3A; --green-soft: #E4F0E7; --amber: #B45309; --amber-soft: #FFF1D6; --blue: #1D4ED8; --red: #8A1F1F; --red-soft: #F3E0E0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding-top: 14px; padding-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; }
+  a { color: var(--green); }
+  .nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 14px; font-size: 14px; font-weight: 600; }
+  main { padding: 16px 0 32px; }
+  .status { font-size: 13px; color: #5C3D00; background: var(--amber-soft); border: 1px solid #F0C879; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+  .status:empty { display: none; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 18px; }
+  @media (min-width: 700px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .tile .n { font-size: 30px; font-weight: 700; line-height: 1; }
+  .tile .l { font-size: 13px; color: var(--muted); }
+  .tile.good .n { color: var(--green); } .tile.warn .n { color: var(--amber); } .tile.bad .n { color: var(--red); } .tile.info .n { color: var(--blue); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 12px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 15px; min-height: 44px; cursor: pointer; }
+  .toggle input { width: 22px; height: 22px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 22px; border: 1px solid var(--green); background: var(--green); color: #fff; font: 600 15px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+  .btn.ghost { background: var(--panel); color: var(--green); }
+  .btn.slim { margin-left: auto; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+  .empty { color: var(--muted); font-size: 15px; padding: 8px 4px; }
+  .printline { display: none; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--green); font: 600 14px system-ui, sans-serif; cursor: pointer; text-decoration: underline; }
+
+  /* Table (wide screens): the columns in the order they print */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px 6px; border-bottom: 1px solid #EDEBE3; vertical-align: top; }
+  tr.site th { text-align: left; font-size: 15px; font-weight: 700; color: var(--green); padding: 16px 6px 6px; border-bottom: 2px solid var(--green); }
+  tr.site:first-child th { padding-top: 4px; }
+  tr.job { cursor: pointer; }
+  tr.job:hover td { background: var(--bg); }
+  tr.job.open td { background: #FFFBEE; }
+  tr.job.finished td { color: var(--muted); }
+  td.ref { font-weight: 700; white-space: nowrap; }
+  td.what { font-weight: 600; min-width: 160px; }
+  td.latest { min-width: 160px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  td::before { display: none; }
+
+  /* Under the row when tapped: detail, photo, the map link and the edit form */
+  tr.more td { padding: 0 0 14px; background: #FFFBEE; }
+  .morebox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0 6px; }
+  .morebox h2 { font-size: 17px; margin: 0 0 4px; }
+  .morebox .jobedit { max-width: 640px; }
+  .maplink { margin: 8px 0 12px; font-size: 15px; }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 4px 0; }
+  .hidden { display: none !important; }
+
+  /* Phone: a card per job, nothing sideways. Screen only: a print from a phone still gets the table. */
+  @media screen and (max-width: 699px) {
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr.site th { display: block; padding: 14px 2px 6px; }
+    tr.job { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 8px; min-height: 48px; }
+    tr.job.open { border-left: 4px solid var(--amber); }
+    tr.job.open td { background: transparent; }
+    tr.job td { padding: 4px 0; border: 0; display: flex; gap: 8px; align-items: baseline; }
+    tr.job td::before { content: attr(data-label); display: block; flex: 0 0 92px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding-top: 3px; }
+    tr.job td.ref { display: none; }
+    tr.job td.what { display: block; font-size: 16px; }
+    tr.job td.what::before { display: none; }
+    tr.job td.what .code { font-weight: 700; margin-right: 6px; }
+    tr.job td.blank { display: none; }   /* blank Blocked by, Expected by and Latest are left off the card; Who stays, a blank one is a signal */
+    tr.more { margin: -4px 0 10px; }
+    tr.more td { padding: 0; }
+    .morebox { margin: 0; }
+  }
+
+  @media print {
+    @page { size: A4 landscape; margin: 12mm; }
+    body { background: #fff; color: #000; font-size: 10pt; }
+    header .nav, .controls, .status, .tiles, tr.more, .note, .btn, .eyebrow { display: none !important; }
+    header { border: 0; }
+    header .wrap, .wrap { padding: 0; max-width: none; }
+    .printline { display: block; font-size: 10pt; margin: 4px 0 10px; }
+    .box { border: 0; padding: 0; margin: 0; }
+    thead { display: table-header-group; }
+    table, tbody, tr, td, th { display: revert; }
+    table { font-size: 9pt; }
+    thead th { color: #000; border-bottom: 1px solid #000; padding: 4px 5px; }
+    td { padding: 5px; border-bottom: 1px solid #999; color: #000; }
+    tr.site th { color: #000; border-bottom: 1.5px solid #000; padding: 10px 5px 4px; font-size: 11pt; }
+    tr.job, tr.site { break-inside: avoid; }
+    tr.job.open td, tr.job:hover td { background: #fff; }
+    tr.job.finished td { color: #333; }
+    .st { border: 1px solid #000; background: #fff !important; color: #000 !important; padding: 0 5px; font-size: 8pt; }
+    tr.job td::before { display: none; }
+    tr.job td.what .code { display: none; }
+  }
+</style>
+<script src="data/config.js"></script>
+<script src="gate.js"></script>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Job board</h1>
+    <span class="sub">Acton Gardening Association - site jobs, all sites</span>
+    <nav class="nav"><a href="index.html">Map</a><a href="dashboard.html">Dashboard</a><a href="print.html">Walk sheet</a></nav>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <div class="status" id="status"></div>
+    <div class="eyebrow">At a glance</div>
+    <div class="tiles" id="tiles"></div>
+    <p class="printline" id="printline"></p>
+    <section class="controls">
+      <label class="toggle"><input type="checkbox" id="showDone"> Show finished (done or not doing)</label>
+      <button type="button" class="btn ghost slim" id="print">Print</button>
+    </section>
+    <section class="box">
+      <div id="board"></div>
+    </section>
+    <p class="note">Tap a job to see its detail and photo, change any of its fields or add a photo. Who is a committee member, rep or contractor, never a plot holder. The sheet is the record: the committee can type straight into it, and what is typed there shows here. To move a job's pin, open it on the map.</p>
+  </div>
+</main>
+<script src="data/sites.js"></script>
+<script src="jobedit.js"></script>
+<script src="jobs.js"></script>
+</body>
+</html>

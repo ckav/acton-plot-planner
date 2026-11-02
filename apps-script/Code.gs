@@ -8,8 +8,18 @@
  *   Current   one row per plot, the latest state. Each check updates it: items sent overwrite, items not
  *             sent keep what was there, so a quick note does not wipe the shed or water answers.
  *             The map card reads this tab. The committee can correct it by typing into it.
- * Plus Jobs, Job updates, Rep links (who may see check details), Settings (the members' password) and
- * Removals (the removal log).
+ * Plus Jobs (one row per job, the latest position, no history), Rep links (who may see check details),
+ * Settings (the members' password) and Removals (the removal log).
+ *
+ * Changes
+ *   2 Nov 2026  Job board as a log (C9) and movable pins (B3). The Jobs tab gains Status, Who, Money,
+ *               Blocked by, Expected by and Latest on the end, with dropdowns on Status and Money. The
+ *               Job updates tab is retired: setup copies each job's last status and note into the new
+ *               columns once, then renames the tab "Job updates (old)". job-status is gone; job-edit
+ *               replaces it. Setup seeds J1-J3 (Bromyard) into the Jobs tab.
+ *               To deploy: paste this file over the old one, Deploy > Manage deployments > pencil >
+ *               Version: New > Deploy, then run setup from the function menu. Check the Jobs header ends
+ *               with "Latest" and J1-J3 are Pending. Never New deployment (that changes the URL).
  *
  * Status pills (agreed 27 Oct 2026). Each of Plot, Shed, Greenhouse, Polytunnel, Water and Fruit trees has
  * a status - Fine, May need a hand, Unsafe (only when something could fall or hurt someone), Not there or
@@ -25,10 +35,19 @@
  *   photo-hide  "Remove from display" on a plot photo (needs a rep key): the photo stays in Drive and in
  *               Entries, marked Replaced, and leaves the Current row
  *   job         a new site job: photo to Plot checks / <Site> / Jobs / <id>.jpg, row to tab "Jobs"
- *   job-status  a status update on a job: row to tab "Job updates"
+ *               (Status Pending, Money No)
+ *   job-edit    changes to a saved job: { id, status, who, money, blockedBy, expectedBy, latest, soon,
+ *               title, detail, photo, x, y }. Only the fields sent are written; the rest of the row is
+ *               left alone. Status must be Pending, Arranged, Done or Not doing; Money must be No, Needs
+ *               approval or Approved; an unknown id is refused. A photo is a data URL, filed under
+ *               Plot checks / <Site> / Jobs / <id> <date>.jpg with the link in the Photo column. x and y
+ *               on their own move the pin. "by" is accepted and ignored: there is no history.
  * Reads (GET):
  *   ?action=unlock&pw=<p>                      does this password (or rep key) open the planner?
- *   ?action=jobs&site=<Site>&pw=<p>            the site's jobs with their latest status
+ *   ?action=jobs&site=<Site>&pw=<p>            the site's jobs (all sites without &site). Each: id, code,
+ *                                              logged, by, site, title, detail, soon, near, x, y, photo,
+ *                                              status, who, money, blockedBy, expectedBy, latest. A blank
+ *                                              Status reads as Pending, a blank Money as No
  *   ?action=plot&site=<Site>&plot=<n>&key=<k>  the Current row and photo for one plot. With the members'
  *                                              password instead of a key: the statuses only, and only when
  *                                              Settings says members see plot condition
@@ -53,8 +72,9 @@
  *    Who has access: Anyone. Deploy. Authorise when asked (Advanced > Go to AGA plot check > Allow).
  * 3. Copy the Web app URL (ends /exec) into data/config.js on the planner site as submitUrl, and
  *    redeploy the site. Open check.html on a phone and send a test with a photo.
- * 4. Choose "setup" in the function menu and Run (once). It adds the new tabs and columns, the removal
- *    dropdown and the edit trigger, makes a link for Claire, and prints it in the execution log.
+ * 4. Choose "setup" in the function menu and Run (once). It adds the new tabs and columns, the dropdowns
+ *    and the edit trigger, seeds J1-J3, makes a link for Claire, and prints it in the execution log.
+ *    Running it again changes nothing.
  * 5. To change this code later: edit, then Deploy > Manage deployments > pencil > Version: New > Deploy.
  *    The URL stays the same. Run setup again after any change that adds tabs or columns.
  *
@@ -68,13 +88,24 @@ var REMOVE_COL = 'Remove photo (committee)';
 var REMOVE_REASONS = ['Person in the photo', 'Inappropriate', 'Plot holder asked', 'Wrong plot or duplicate'];
 var ITEMS = ['Plot', 'Shed', 'Greenhouse', 'Polytunnel', 'Water', 'Fruit trees'];
 var STATUSES = ['Fine', 'May need a hand', 'Unsafe', 'Not there', 'Not checked'];
+// Jobs (2 Nov 2026): four statuses, a money flag, and the text fields job-edit may write with their lengths
+var JOB_STATUSES = ['Pending', 'Arranged', 'Done', 'Not doing'];
+var JOB_MONEY = ['No', 'Needs approval', 'Approved'];
+var JOB_TEXT = { who: ['Who', 60], blockedBy: ['Blocked by', 200], expectedBy: ['Expected by', 40], latest: ['Latest', 500],
+  title: ['What', 120], detail: ['Detail', 500], soon: ['How soon', 60] };
+// The three Bromyard jobs from the 24 Oct sketch, put into the Jobs tab by setup if they are not there
+var SEED_JOBS = [
+  ['J1', 'Hedge along the Bromyard Avenue footpath - cut back', 'Plots bounded by the hedge keep their own stretch trimmed (rule 11g), so partly a plot matter for the Avenue side.', 'This season', 187, 567, 'No', ''],
+  ['J2', 'Trees and hedge along the fenceline - cut back', 'Pin position to confirm on the walk.', 'This season', 633, 81, 'No', ''],
+  ['J3', 'Large trees - felling', 'Ask the council first: likely their land, and big trees may be protected. Needs a contractor and money, so next year\'s budget. Pin position to confirm on the walk.', 'Just noting it', 1019, 796, 'Needs approval', 'Council to confirm whose trees they are']
+];
 var TABS = {
   Entries: ['Sent', 'Who', 'Site', 'Plot', 'How it looks', 'Shed', 'Shed condition', 'Greenhouse', 'Polytunnel', 'Water harvesting', 'Water - what', 'Flags', 'Note', 'Photo', 'Received', 'Photo status', REMOVE_COL]
     .concat(ITEMS.reduce(function (a, i) { return a.concat([i + ' status', i + ' - why']); }, []), ['Help requested']),
   Current: ['Site', 'Plot'].concat(ITEMS.reduce(function (a, i) { return a.concat([i + ' status', i + ' - why', i + ' - help']); }, []),
     ['Flags', 'Latest note', 'Photo', 'Last check', 'Checked by']),
-  Jobs: ['Id', 'Code', 'Logged', 'By', 'Site', 'What', 'Detail', 'How soon', 'Near plot', 'X', 'Y', 'Photo', 'Received', 'Photo status', REMOVE_COL, 'Plot item'],
-  'Job updates': ['Id', 'At', 'By', 'Site', 'Status', 'Note', 'Received'],
+  Jobs: ['Id', 'Code', 'Logged', 'By', 'Site', 'What', 'Detail', 'How soon', 'Near plot', 'X', 'Y', 'Photo', 'Received', 'Photo status', REMOVE_COL, 'Plot item',
+    'Status', 'Who', 'Money', 'Blocked by', 'Expected by', 'Latest'],
   'Rep links': ['Name', 'Site', 'Key', 'Link', 'Active', 'Made'],
   Settings: ['Setting', 'Value', 'What it does'],
   Removals: ['When', 'By', 'Tab', 'Row', 'Site', 'Plot or job', 'Reason']
@@ -95,7 +126,7 @@ function doPost(e) {
     var who = access_(d);
     if (!who.ok) return json_({ ok: false, error: who.error });
     if (kind === 'job') return saveJob_(d);
-    if (kind === 'job-status') return saveJobStatus_(d);
+    if (kind === 'job-edit') return editJob_(d);
     if (kind === 'photo-hide') return hidePhoto_(d);
     return saveCheck_(d);
   } catch (err) {
@@ -201,7 +232,8 @@ function helpJob_(site, plot, itemName, it, help, who) {
   var sh = tab_('Jobs'), n = rows_('Jobs').filter(function (r) { return /^H\d+$/.test(r[1]); }).length + 1;
   var id = 'H-' + Date.now().toString(36) + n, code = 'H' + n;
   var title = 'Plot ' + plot + ' - ' + itemName.toLowerCase() + (it.why ? ': ' + it.why.toLowerCase() : '') + ' - help requested';
-  sh.appendRow([id, code, new Date().toISOString(), who, site, title.slice(0, 120), help, 'Next work morning', plot, '', '', '', new Date(), '', '', itemName]);
+  sh.appendRow([id, code, new Date().toISOString(), who, site, title.slice(0, 120), help, 'Next work morning', plot, '', '', '', new Date(), '', '', itemName,
+    'Pending', '', 'No', '', '', '']);
   return { id: id, code: code, title: title };
 }
 
@@ -271,16 +303,48 @@ function saveJob_(d) {
   if (!id || !site || !title || !by) return json_({ ok: false, error: 'missing id, site, title or by' });
   var url = d.photo ? savePhoto_(folder_(folder_(root_(), site), 'Jobs'), d.photo, d.photoType, id + '.jpg') : '';
   tab_('Jobs').appendRow([id, clean_(d.code, 10), d.logged || new Date().toISOString(), by, site, title, clean_(d.detail, 500),
-    clean_(d.soon, 60), clean_(d.near, 12), num_(d.x), num_(d.y), url, new Date(), '', '', '']);
+    clean_(d.soon, 60), clean_(d.near, 12), num_(d.x), num_(d.y), url, new Date(), '', '', '', 'Pending', '', 'No', '', '', '']);
   return json_({ ok: true, photo: url });
 }
 
-function saveJobStatus_(d) {
-  var id = clean_(d.id, 30), status = clean_(d.status, 60), by = clean_(d.by, 60);
-  if (!id || !status || !by) return json_({ ok: false, error: 'missing id, status or by' });
-  tab_('Job updates').appendRow([id, d.at || new Date().toISOString(), by, clean_(d.site, 30), status, clean_(d.note, 500), new Date()]);
-  if (status === 'Done' || status === 'Not doing') clearHelp_(id);
-  return json_({ ok: true });
+// job-edit: writes only the fields sent, each straight into its cell, so a committee member typing in the
+// sheet at the same time loses nothing else on the row. "by" is accepted and ignored: the row is the record.
+function editJob_(d) {
+  var id = clean_(d.id, 30);
+  if (!id) return json_({ ok: false, error: 'missing id' });
+  var sh = tab_('Jobs'), rows = rows_('Jobs'), at = -1;
+  for (var i = 0; i < rows.length; i++) if (String(rows[i][0]) === id) { at = i; break; }
+  if (at < 0) return json_({ ok: false, error: 'unknown id' });
+  var row = rows[at], set = {}, sent = function (k) { return d[k] !== undefined; };
+  if (sent('status')) {
+    var status = clean_(d.status, 20);
+    if (JOB_STATUSES.indexOf(status) < 0) return json_({ ok: false, error: 'status must be one of ' + JOB_STATUSES.join(', ') });
+    set.Status = status;
+  }
+  if (sent('money')) {
+    var money = clean_(d.money, 20);
+    if (JOB_MONEY.indexOf(money) < 0) return json_({ ok: false, error: 'money must be one of ' + JOB_MONEY.join(', ') });
+    set.Money = money;
+  }
+  Object.keys(JOB_TEXT).forEach(function (k) { if (sent(k)) set[JOB_TEXT[k][0]] = clean_(d[k], JOB_TEXT[k][1]); });
+  if (set.What === '') return json_({ ok: false, error: 'title cannot be blank' });
+  if (sent('x') || sent('y')) {
+    if (!isFinite(Number(d.x)) || !isFinite(Number(d.y)) || d.x === '' || d.y === '' || d.x === null || d.y === null) return json_({ ok: false, error: 'x and y must both be numbers' });
+    set.X = Number(d.x); set.Y = Number(d.y);
+  }
+  var url = '';
+  if (d.photo) {
+    url = savePhoto_(folder_(folder_(root_(), String(row[4])), 'Jobs'), d.photo, d.photoType, id + ' ' + stamp_() + '.jpg');
+    set.Photo = url; set['Photo status'] = '';
+  }
+  if (!Object.keys(set).length) return json_({ ok: false, error: 'nothing to change' });
+  Object.keys(set).forEach(function (name) {
+    var c = col_('Jobs', name);
+    sh.getRange(at + 2, c + 1).setValue(set[name]);
+    row[c] = set[name];
+  });
+  if (set.Status === 'Done' || set.Status === 'Not doing') clearHelp_(id);
+  return json_({ ok: true, photo: url, job: jobObj_(row) });
 }
 
 // A help job closed: take the "help asked" marker off the plot's item.
@@ -292,23 +356,17 @@ function clearHelp_(id) {
   if (cur) cur.sheet.getRange(cur.row, col_('Current', itemName + ' - help') + 1).setValue('');
 }
 
+// All jobs, or one site's. The row is the whole record: no history, no updates list.
 function listJobs_(site) {
-  var jobs = {};
-  rows_('Jobs').forEach(function (r) {
-    if (site && r[4] !== site) return;
-    jobs[r[0]] = { id: r[0], code: r[1], logged: iso_(r[2]), by: r[3], site: r[4], title: r[5], detail: r[6], soon: r[7], near: r[8],
-      x: r[9] === '' ? null : Number(r[9]), y: r[10] === '' ? null : Number(r[10]), photo: /^https?:/.test(r[11]) ? r[11] : '', status: 'Logged', updates: [] };
-  });
-  rows_('Job updates').forEach(function (r) {
-    var j = jobs[r[0]]; if (!j) return;
-    j.updates.push({ at: iso_(r[1]), by: r[2], status: r[4], note: r[5] });
-  });
-  return Object.keys(jobs).map(function (k) {
-    var j = jobs[k];
-    j.updates.sort(function (a, b) { return a.at < b.at ? -1 : 1; });
-    if (j.updates.length) j.status = j.updates[j.updates.length - 1].status;
-    return j;
-  });
+  return rows_('Jobs').filter(function (r) { return r[0] !== '' && (!site || String(r[4]) === site); }).map(jobObj_);
+}
+
+function jobObj_(r) {
+  var c = function (name) { return r[col_('Jobs', name)]; }, s = function (name) { return String(c(name) == null ? '' : c(name)); };
+  return { id: s('Id'), code: s('Code'), logged: iso_(c('Logged')), by: s('By'), site: s('Site'), title: s('What'), detail: s('Detail'),
+    soon: s('How soon'), near: s('Near plot'), x: s('X') === '' ? null : Number(c('X')), y: s('Y') === '' ? null : Number(c('Y')),
+    photo: /^https?:/.test(s('Photo')) ? s('Photo') : '', status: s('Status') || 'Pending', who: s('Who'), money: s('Money') || 'No',
+    blockedBy: s('Blocked by'), expectedBy: s('Expected by'), latest: s('Latest') };
 }
 
 // ---- who gets in: a rep key, or the members' password
@@ -359,6 +417,13 @@ function setup() {
   cur.getRange('B:B').setNumberFormat('@');
   var statusRule = SpreadsheetApp.newDataValidation().requireValueInList(STATUSES, true).setAllowInvalid(true).build();
   ITEMS.forEach(function (i) { cur.getRange(2, col_('Current', i + ' status') + 1, 2000, 1).setDataValidation(statusRule); });
+  var jobs = ss.getSheetByName('Jobs');
+  [['Status', JOB_STATUSES], ['Money', JOB_MONEY]].forEach(function (p) {
+    var rule = SpreadsheetApp.newDataValidation().requireValueInList(p[1], true).setAllowInvalid(false).build();
+    jobs.getRange(2, col_('Jobs', p[0]) + 1, Math.max(1, jobs.getMaxRows() - 1), 1).setDataValidation(rule);
+  });
+  retireJobUpdates_(ss);
+  seedJobs_();
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'handleEdit') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('handleEdit').forSpreadsheet(ss).onEdit().create();
   rebuildCurrent_();
@@ -369,6 +434,43 @@ function setup() {
   if (links.getLastRow() < 2) { links.appendRow(['Claire Kavanagh', 'All']); fillKey_(links, 2); }
   Logger.log('Sheet: ' + ss.getUrl());
   rows_('Rep links').forEach(function (r) { Logger.log(r[0] + ' (' + r[1] + '): ' + r[3]); });
+}
+
+// One-off (2 Nov 2026): the Job updates tab held a status history. Each job's last row becomes its Status
+// (Logged, Needs approval and Approved become Pending; Done and Not doing stay) and its note becomes Latest,
+// only where the new cells are still blank. Then the tab is renamed "Job updates (old)" and never touched
+// again, so running setup twice does nothing the second time.
+function retireJobUpdates_(ss) {
+  var old = ss.getSheetByName('Job updates');
+  if (!old) return;
+  var n = old.getLastRow(), last = {};
+  var rows = n < 2 ? [] : old.getRange(2, 1, n - 1, 7).getValues();
+  rows.forEach(function (r) {
+    var id = String(r[0] || ''), at = iso_(r[1]);
+    if (!id) return;
+    if (!last[id] || at > last[id].at) last[id] = { at: at, status: String(r[4] || '').trim(), note: String(r[5] || '').trim() };
+  });
+  var sh = tab_('Jobs'), sc = col_('Jobs', 'Status'), lc = col_('Jobs', 'Latest');
+  rows_('Jobs').forEach(function (r, i) {
+    var u = last[String(r[0])]; if (!u) return;
+    var status = (u.status === 'Done' || u.status === 'Not doing') ? u.status : 'Pending';
+    if (String(r[sc] || '') === '') sh.getRange(i + 2, sc + 1).setValue(status);
+    if (String(r[lc] || '') === '' && u.note) sh.getRange(i + 2, lc + 1).setValue(u.note.slice(0, 500));
+  });
+  var name = 'Job updates (old)';
+  if (ss.getSheetByName(name)) name += ' ' + day_();
+  old.setName(name);
+}
+
+// The three Bromyard jobs from the sketch, once. A job already in the tab (by Id) is left alone.
+function seedJobs_() {
+  var sh = tab_('Jobs'), have = {};
+  rows_('Jobs').forEach(function (r) { have[String(r[0])] = true; });
+  SEED_JOBS.forEach(function (s) {
+    if (have[s[0]]) return;
+    sh.appendRow([s[0], s[0], '2026-10-24T14:30:00Z', 'Claire Kavanagh', 'Bromyard', s[1], s[2], s[3], '', s[4], s[5], '', new Date(), '', '', '',
+      'Pending', '', s[6], s[7], '', '']);
+  });
 }
 
 // Builds Current from Entries for any plot that has no Current row yet (first run, after the pill change,
