@@ -47,6 +47,11 @@
   dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; font-size: 14px; }
   dt { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
   dd { margin: 0; color: #8A5A00; }
+  dd.val { color: var(--ink); }
+  .plotnote { margin: 10px 0 4px; font-size: 15px; }
+  .flagrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .flag { font-size: 12px; font-weight: 500; padding: 4px 9px; border-radius: 12px; background: #EDEBE3; color: #3D3C38; }
+  .plotphoto { display: block; width: 100%; border-radius: 8px; margin-top: 6px; }
   .note { font-size: 13px; color: var(--muted); border-top: 1px solid #EDEBE3; padding-top: 12px; margin-top: 14px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; padding: 0 18px; border-radius: 24px; border: 1px solid var(--green); background: var(--green); color: #fff; font: 600 16px system-ui, sans-serif; text-decoration: none; cursor: pointer; }
   .btn.ghost { background: var(--panel); color: var(--green); }
@@ -69,7 +74,8 @@
   .updates li { border-left: 3px solid var(--line); padding-left: 10px; }
   .updform { display: grid; gap: 10px; margin-top: 10px; }
   .updform label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
-  .updform input[type="text"], .updform select { font: 15px system-ui, sans-serif; padding: 10px 12px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+  .grid > * { min-width: 0; }
+  .updform input[type="text"], .updform select { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; font: 15px system-ui, sans-serif; padding: 10px 12px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
   .updform input[type="file"] { font-size: 14px; }
   .msg { border-radius: 8px; padding: 10px 12px; font-size: 14px; }
   .msg.err { background: #F3E0E0; color: #8A1F1F; }
@@ -86,6 +92,8 @@
   footer .wrap { padding: 14px 16px; }
   .status { font-size: 13px; color: #5C3D00; background: var(--amber-soft); border: 1px solid #F0C879; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
 </style>
+<script src="data/config.js"></script>
+<script src="gate.js"></script>
 </head>
 <body>
 <header>
@@ -120,6 +128,7 @@
 </main>
 <footer><div class="wrap" id="credit"></div></footer>
 <script src="data/sites.js"></script>
+<script src="pills.js"></script>
 <script src="planner.js"></script>
 </body>
 </html>

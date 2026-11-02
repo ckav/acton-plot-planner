@@ -1,7 +1,10 @@
 /* Plot planner: draws one site's map from data/sites.js. The right-hand panel shows whatever was
    last tapped: a plot (with "Add / edit notes"), the site's jobs, one job (with a status update),
    or the "Log a job" form. Jobs are kept on this phone until the receiver is connected, then they
-   go to the association's sheet and are read back from it. No frameworks, no personal data. */
+   go to the association's sheet and are read back from it. No frameworks, no personal data.
+   The plot card shows the plot's latest check (the sheet's Current tab) only to someone whose phone
+   holds a rep key, from opening a rep link (?key=...) once. With the members' password (gate.js) it shows
+   the plot's condition only, and only if the committee has switched that on in the sheet's Settings tab. */
 (function () {
   var NS = 'http://www.w3.org/2000/svg';
   var sites = window.PLANNER_SITES || [];
@@ -38,6 +41,13 @@
   var rot = function (ang, cx, cy) { return 'rotate(' + ang + ' ' + cx + ' ' + cy + ')'; };
   var store = function (k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('aga-' + k) || 'null'); localStorage.setItem('aga-' + k, JSON.stringify(v)); } catch (e) { return null; } };
   var who = function () { return store('who') || ''; };
+  var KEY = (function () {
+    var q = new URLSearchParams(location.search), k = q.get('key');
+    if (k) { store('key', k); q.delete('key'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+    return k || store('key') || '';
+  })();
+  var plotInfo = {};
+  var cardOpen = null;   // the pill on the plot card whose words are showing   // site|plot -> { state: 'loading' | 'ok' | 'none' | 'error', plot }
   var when = function (iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); };
 
   // ---- jobs: seed from the data file, plus this phone's additions, plus the sheet when connected
@@ -58,20 +68,28 @@
     }).sort(function (a, b) { return (a.logged || '') < (b.logged || '') ? -1 : 1; });
   }
   function saveLocal(key, item) { var list = store(key + '-' + site.key) || []; list.push(item); store(key + '-' + site.key, list); }
+  function denied(j) { if (j && j.error === 'password') AGA_GATE.relock(); return j; }
   function post(body) {
     if (!CONFIG.submitUrl) return Promise.resolve({ ok: false, offline: true });
-    return fetch(CONFIG.submitUrl, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+    body = Object.assign({ pw: AGA_GATE.pw() }, body);
+    return fetch(CONFIG.submitUrl, { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(denied).catch(function () { return { ok: false }; });
   }
   function loadRemote() {
     if (!CONFIG.submitUrl) return;
-    fetch(CONFIG.submitUrl + '?action=jobs&site=' + encodeURIComponent(site.recordName || site.name))
+    fetch(CONFIG.submitUrl + '?action=jobs&site=' + encodeURIComponent(site.recordName || site.name) + AGA_GATE.auth())
       .then(function (r) { return r.json(); })
+      .then(denied)
       .then(function (j) { if (j && j.ok) { remoteJobs = j.jobs || []; draw(); } })
       .catch(function () {});
   }
 
   // ---- controls
   function buildControls() {
+    $('map').addEventListener('click', function (ev) { if (placing || mode === 'logjob') placeAt(ev); });
+    $('card').addEventListener('click', function (ev) {
+      var b = ev.target.closest('.pst'); if (!b) return;
+      var n = b.getAttribute('data-item'); cardOpen = cardOpen === n ? null : n; drawPanel();
+    });
     var sel = $('site');
     sel.innerHTML = '';
     sites.forEach(function (s, i) { var o = document.createElement('option'); o.value = i; o.textContent = s.name + (s.holding ? ' (no plots yet)' : ''); sel.appendChild(o); });
@@ -119,7 +137,9 @@
       g.appendChild(r);
       if (layers.numbers) g.appendChild(el('text', { x: p.cx, y: p.cy, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': p.kind === 'half' ? 34 : 42, 'font-weight': 700, 'font-family': 'system-ui, sans-serif', fill: '#FFFFFF', stroke: 'rgba(20,20,20,0.85)', 'stroke-width': 8, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, p.id));
       var pick = function (ev) {
-        if (placing) { placeAt(ev); return; }
+        if (placing || mode === 'logjob') { ev.stopPropagation(); if (ev.clientX != null) { draft.near = p.id.toUpperCase(); placeAt(ev); } return; }
+        if (selected === p.id) { var k = (site.recordName || site.name) + '|' + p.id.toUpperCase(); if (plotInfo[k] && plotInfo[k].state !== 'loading') delete plotInfo[k]; }
+        if (selected !== p.id) cardOpen = null;
         selected = p.id; mode = 'plot'; draw();
       };
       g.addEventListener('click', pick);
@@ -141,7 +161,6 @@
     });
     if (mode === 'logjob' && draft.x != null) svg.appendChild(pin(draft.x, draft.y, '#B45309', 'New job', true, null));
 
-    if (placing) svg.addEventListener('click', placeAt);
 
     drawPanel();
     $('jobsChip').setAttribute('aria-pressed', String(mode === 'jobs'));
@@ -152,7 +171,7 @@
       '<span class="key"><span class="dot" style="background:#7C4A1E"></span>Shed</span>' +
       '<span class="key"><span class="dot" style="background:#1D4ED8"></span>Tap or tank</span>' +
       '<span class="key"><span class="dot" style="background:#141413"></span>Gate</span>';
-    $('status').textContent = placing ? 'Tap the map where the job is.' : site.status;
+    $('status').textContent = mode === 'logjob' ? (draft.x == null ? 'Tap the map where the job is.' : 'Pin placed. Tap the map again to move it.') : site.status;
     $('credit').textContent = site.imageCredit + '. Demo for the committee - numbers only, no personal data.';
   }
 
@@ -163,7 +182,7 @@
     var flip = x > site.imageW * 0.72;
     if (label.length > 34) label = label.slice(0, 32) + '...';
     g.appendChild(el('text', { x: flip ? x - 20 : x + 20, y: y, 'text-anchor': flip ? 'end' : 'start', 'dominant-baseline': 'central', 'font-size': 24, 'font-weight': 600, 'font-family': 'system-ui, sans-serif', fill: '#1A1A1A', stroke: '#FFFFFF', 'stroke-width': 7, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, label));
-    if (onClick) { g.addEventListener('click', function (ev) { ev.stopPropagation(); if (placing) { placeAt(ev); return; } onClick(); }); g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onClick(); } }); }
+    if (onClick) { g.addEventListener('click', function (ev) { ev.stopPropagation(); if (placing || mode === 'logjob') { placeAt(ev); return; } onClick(); }); g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onClick(); } }); }
     else g.setAttribute('pointer-events', 'none');
     return g;
   }
@@ -193,15 +212,48 @@
       return;
     }
     var full = site.plots.filter(function (x) { return x.kind === 'full'; }).length, half = site.plots.length - full;
-    var link = 'check.html?site=' + encodeURIComponent(site.recordName || site.name) + '&plot=' + encodeURIComponent(p.id.toUpperCase());
+    var siteName = site.recordName || site.name, plotNo = p.id.toUpperCase();
+    var link = 'check.html?site=' + encodeURIComponent(siteName) + '&plot=' + encodeURIComponent(plotNo);
     panel.innerHTML =
       '<div class="eyebrow">' + esc(site.name) + ' <span class="pill' + (p.kind === 'half' ? ' half' : '') + '">' + (p.kind === 'half' ? 'Half plot' : 'Full plot') + '</span></div>' +
       '<h2>Plot ' + esc(p.id) + '</h2>' +
       '<a class="btn" href="' + link + '">Add / edit notes</a>' +
-      '<dl><div><dt>Plot holder</dt><dd>In the committee record</dd></div><div><dt>Status</dt><dd>In the committee record</dd></div>' +
-      '<div><dt>Rent 2026-27</dt><dd>In the committee record</dd></div><div><dt>Last check</dt><dd>None yet</dd></div>' +
-      '<div><dt>Photos</dt><dd>None yet</dd></div><div><dt>Flags</dt><dd>None yet</dd></div></dl>' +
+      checkDetails(siteName, plotNo) +
       '<p class="note">' + full + ' full and ' + half + ' half plots drawn on this site. Numbers are provisional until the site rep has walked it.</p>';
+  }
+
+  // The latest check, read from the sheet's Current tab: all of it for a rep key, the condition only for members.
+  var REPS_ONLY = '<p class="note">Check details and photos show here for site reps and the committee. Open the planner from your own rep link once and this phone will remember it.</p>';
+  var PW_ONLY = '<p class="note">You are in with the members&#39; password, which shows plot numbers only. Site reps and the committee: open your own rep link once on this phone or computer to see and edit the latest check.</p>';
+  function checkDetails(siteName, plotNo) {
+    if (!CONFIG.submitUrl) return REPS_ONLY;
+    var k = siteName + '|' + plotNo, info = plotInfo[k];
+    if (!info) { loadPlot(siteName, plotNo); return '<p class="empty">Loading the latest check...</p>'; }
+    if (info.state === 'loading') return '<p class="empty">Loading the latest check...</p>';
+    if (info.state === 'denied') return '<p class="note">This phone\'s rep link does not cover ' + esc(siteName) + ', or has been switched off.</p>';
+    if (info.state === 'error') return '<p class="note">Could not load the latest check - no connection? Tap the plot again to retry.</p>';
+    if (info.hidden) return PW_ONLY;
+    var s = info.plot;
+    if (!s) return '<p class="empty">No check on record yet.</p>';
+    // Status pills (pills.js): tap one to see its words. Members see the colours only.
+    var checked = 'Checked ' + (when(s.lastAt) || 'date unknown') + (s.lastBy ? ' by ' + esc(s.lastBy) : '');
+    if (info.limited) return AGA_PILLS.view(s.items, cardOpen) + '<p class="sub">' + checked + '</p>';
+    var flags = s.flags ? s.flags.split(', ') : [];
+    return AGA_PILLS.view(s.items, cardOpen) +
+      (flags.length ? '<div class="flagrow">' + flags.map(function (f) { return '<span class="flag">' + esc(f) + '</span>'; }).join('') + '</div>' : '') +
+      (s.photo && s.photo.data ? '<img class="plotphoto" alt="Latest photo of plot ' + esc(plotNo) + '" src="data:image/jpeg;base64,' + s.photo.data + '">' : '') +
+      (s.note ? '<p class="plotnote">' + esc(s.note) + '</p>' : '') +
+      '<p class="sub">' + checked + '</p>';
+  }
+  function loadPlot(siteName, plotNo) {
+    var k = siteName + '|' + plotNo;
+    plotInfo[k] = { state: 'loading' };
+    fetch(CONFIG.submitUrl + '?action=plot&site=' + encodeURIComponent(siteName) + '&plot=' + encodeURIComponent(plotNo) + AGA_GATE.auth())
+      .then(function (r) { return r.json(); })
+      .then(denied)
+      .then(function (j) { plotInfo[k] = j && j.ok ? { state: 'ok', plot: j.plot, hidden: j.hidden, limited: j.limited } : { state: (j && (j.error === 'key' || j.error === 'site')) ? 'denied' : 'error' }; })
+      .catch(function () { plotInfo[k] = { state: 'error' }; })
+      .then(function () { if (mode === 'plot') drawPanel(); });
   }
 
   function statusPill(s) { return '<span class="st ' + (STATUS_STYLE[s] || 'st-logged') + '">' + esc(s) + '</span>'; }
@@ -244,34 +296,41 @@
       '<label>Status<select id="updStatus">' + STATUSES.map(function (s) { return '<option' + (s === j.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
       '<label>Note (optional)<input type="text" id="updNote" placeholder="e.g. done on the Nov work morning"></label>' +
       '<label>Your name<input type="text" id="updWho" value="' + esc(who()) + '" placeholder="Who is updating"></label>' +
-      '<button type="submit" class="btn">Save update</button><div id="updMsg" class="msg hidden" role="status"></div></form>';
+      '<button type="submit" class="btn" id="updSave">Save update</button><div id="updMsg" class="msg hidden" role="status"></div>' +
+      '<button type="button" class="btn ghost hidden" id="updBack">&larr; Back to all jobs</button></form>';
     $('backJobs').addEventListener('click', function () { mode = 'jobs'; draw(); });
     $('upd').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var by = $('updWho').value.trim(); if (!by) { msg('updMsg', 'err', 'Put your name so the record shows who updated it.'); return; }
       store('who', by);
       var u = { id: j.id, at: new Date().toISOString(), by: by, status: $('updStatus').value, note: $('updNote').value.trim() };
-      saveLocal('updates', u);
-      post(Object.assign({ kind: 'job-status', site: site.recordName || site.name }, u)).then(function () { draw(); });
+      $('updSave').disabled = true; $('updSave').textContent = 'Saving...';
+      post(Object.assign({ kind: 'job-status', site: site.recordName || site.name }, u)).then(function (r) {
+        if (r && r.ok) { saveLocal('updates', u); draw(); afterSaved('Saved: ' + u.status + '.'); return; }
+        $('updSave').disabled = false; $('updSave').textContent = 'Save update';
+        msg('updMsg', 'err', 'Not saved - no connection, or the planner could not reach the sheet. Try again in a moment.');
+      });
     });
   }
 
   function drawLogJob(panel) {
-    var plotOpts = '<option value="">Not tied to a plot</option>' + site.plots.map(function (p) { return '<option>' + esc(p.id.toUpperCase()) + '</option>'; }).join('');
+    if ($('ljTitle')) { draft.title = $('ljTitle').value; draft.detail = $('ljDetail').value; draft.soon = $('ljSoon').value; draft.who = $('ljWho').value; if (draft.near === undefined) draft.near = $('ljNear').value; }
+    var plotOpts = '<option value="">Not tied to a plot</option>' + site.plots.map(function (p) { var v = p.id.toUpperCase(); return '<option' + (draft.near === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
     panel.innerHTML =
       '<button type="button" class="linkbtn" id="cancelLog">&larr; Cancel</button>' +
       '<div class="eyebrow">Log a job - ' + esc(site.name) + '</div>' +
       '<form id="logf" class="updform">' +
-      '<label>What needs doing<input type="text" id="ljTitle" placeholder="e.g. Hedge by the gate - cut back" required></label>' +
-      '<label>A bit more, if useful<input type="text" id="ljDetail" placeholder="Optional"></label>' +
-      '<label>How soon<select id="ljSoon">' + SOON.map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
+      '<label>What needs doing<input type="text" id="ljTitle" placeholder="e.g. Hedge by the gate - cut back" required value="' + esc(draft.title || '') + '"></label>' +
+      '<label>A bit more, if useful<input type="text" id="ljDetail" placeholder="Optional" value="' + esc(draft.detail || '') + '"></label>' +
+      '<label>How soon<select id="ljSoon">' + SOON.map(function (s) { return '<option' + (draft.soon === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label>' +
       '<label>Where<select id="ljNear">' + plotOpts + '</select></label>' +
-      '<button type="button" class="btn ghost" id="ljPlace">' + (draft.x != null ? 'Pin placed - tap to move it' : 'Pin it on the map') + '</button>' +
-      '<label>Photo (optional)<input type="file" id="ljPhoto" accept="image/*" capture="environment"></label><span id="ljPhotoNote" class="sub"></span>' +
-      '<label>Your name<input type="text" id="ljWho" value="' + esc(who()) + '" placeholder="Who is logging it"></label>' +
+      '<button type="button" class="btn ghost" id="ljPlace">' + (draft.x != null ? 'Pin placed - tap the map to move it' : 'Tap the map to place the pin') + '</button>' +
+      '<label>Photo (optional)<input type="file" id="ljPhoto" accept="image/*"></label><span id="ljPhotoNote" class="sub"></span>' +
+      '<label>Your name<input type="text" id="ljWho" value="' + esc(draft.who != null ? draft.who : who()) + '" placeholder="Who is logging it"></label>' +
       '<button type="submit" class="btn">Save job</button><div id="ljMsg" class="msg hidden" role="status"></div></form>';
     $('cancelLog').addEventListener('click', function () { mode = 'jobs'; placing = false; draw(); });
     $('ljPlace').addEventListener('click', function () { placing = true; draw(); });
+    $('ljNear').addEventListener('change', function () { draft.near = $('ljNear').value; });
     $('ljPhoto').addEventListener('change', function () {
       var f = $('ljPhoto').files[0]; if (!f) return;
       $('ljPhotoNote').textContent = 'Preparing photo...';
@@ -286,12 +345,29 @@
       var n = allJobs().length + 1;
       var j = { id: 'J-' + Date.now().toString(36), code: 'J' + n, title: title, detail: $('ljDetail').value.trim(), soon: $('ljSoon').value,
         near: $('ljNear').value, x: draft.x, y: draft.y, by: by, logged: new Date().toISOString(), status: 'Logged', updates: [] };
-      saveLocal('jobs', j);
       var body = Object.assign({ kind: 'job', site: site.recordName || site.name, photo: draft.photo ? draft.photo.base64 : '', photoType: 'image/jpeg' }, j);
-      jobId = j.id; mode = 'job'; placing = false;
-      post(body).then(function (r) { if (r && r.ok && r.photo) { var list = store('jobs-' + site.key) || []; list.forEach(function (x) { if (x.id === j.id) x.photo = r.photo; }); store('jobs-' + site.key, list); } draw(); });
-      draw();
+      var save = $('logf').querySelector('button[type=submit]');
+      save.disabled = true; save.textContent = 'Saving...';
+      post(body).then(function (r) {
+        if (!CONFIG.submitUrl || (r && r.ok)) {
+          if (r && r.photo) j.photo = r.photo;
+          saveLocal('jobs', j);
+          jobId = j.id; mode = 'job'; placing = false; draw();
+          afterSaved(CONFIG.submitUrl ? 'Job saved.' : 'Job saved on this phone.');
+          return;
+        }
+        save.disabled = false; save.textContent = 'Save job';
+        msg('ljMsg', 'err', 'Not saved - no connection, or the planner could not reach the sheet. Try again in a moment.');
+      });
     });
+  }
+
+  // After a job or update is saved: a green confirmation and a way back to the list, in place of the form.
+  function afterSaved(text) {
+    msg('updMsg', 'ok', text + ' Thank you.');
+    $('upd').querySelectorAll('label, #updSave').forEach(function (e) { e.classList.add('hidden'); });
+    $('updBack').classList.remove('hidden');
+    $('updBack').addEventListener('click', function () { mode = 'jobs'; draw(); });
   }
 
   function msg(id, kind, text) { var m = $(id); m.className = 'msg ' + kind; m.textContent = text; }
@@ -301,10 +377,10 @@
     reader.onload = function () {
       var img = new Image();
       img.onload = function () {
-        var s = Math.min(1, 1600 / Math.max(img.width, img.height));
+        var s = Math.min(1, 1280 / Math.max(img.width, img.height));   // same as check.js: about 150 KB a photo
         var c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        var dataUrl = c.toDataURL('image/jpeg', 0.82);
+        var dataUrl = c.toDataURL('image/jpeg', 0.78);
         cb({ base64: dataUrl.split(',')[1], dataUrl: dataUrl });
       };
       img.onerror = function () { cb(null); };
