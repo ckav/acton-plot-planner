@@ -17,11 +17,11 @@
     var s = SITES.filter(function (x) { return (x.recordName || x.name) === site; })[0];
     if (!s) return [];
     var byId = {};
-    (s.jobs || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Logged' }, j); });
-    (store('jobs-' + s.key) || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Logged' }, byId[j.id] || {}, j); });
-    var ups = (store('updates-' + s.key) || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; });
-    ups.forEach(function (u) { if (byId[u.id]) byId[u.id].status = u.status; });
-    return Object.keys(byId).map(function (k) { return byId[k]; });
+    // C9 (2 Nov 2026): one row per job, four statuses, no update history. Blank status reads as Pending.
+    (s.jobs || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Pending', money: 'No' }, j); });
+    (store('jobs-' + s.key) || []).forEach(function (j) { byId[j.id] = Object.assign({ status: 'Pending', money: 'No' }, byId[j.id] || {}, j); });
+    (store('edits-' + s.key) || []).forEach(function (e) { if (byId[e.id]) Object.keys(e).forEach(function (k) { if (['id', 'kind', 'site', 'by', 'queuedAt', 'photo', 'photoType'].indexOf(k) < 0) byId[e.id][k] = e[k]; }); });
+    return Object.keys(byId).map(function (k) { var j = byId[k]; if (!j.status || ['Pending', 'Arranged', 'Done', 'Not doing'].indexOf(j.status) < 0) j.status = 'Pending'; return j; });
   }
 
   function counts(site) {
@@ -34,7 +34,7 @@
       rentNone: d.rentNone || 0, rentPartial: d.rentPartial || 0, rentPaid: d.rentPaid || 0, rentUnknown: d.rentUnknown || 0,
       warnings: d.warnings || 0, issues: d.issues || 0,
       jobsOpen: open.length,
-      jobsApproval: open.filter(function (j) { return j.status === 'Needs approval at the next committee meeting'; }).length,
+      jobsApproval: open.filter(function (j) { return j.money === 'Needs approval'; }).length,
       jobsUrgent: open.filter(function (j) { return /hurt/i.test(j.soon || ''); }).length,
       checked: 0
     };
@@ -65,8 +65,8 @@
     if (c.checked < c.plots) todo.push(item('warn', c.plots - c.checked, 'Walk the plots not yet checked this season', 'Tap a plot on the map, "Add / edit notes", under a minute each.', mapLink, 'Start on the map'));
     if (c.noEmail) todo.push(item('warn', c.noEmail, 'Get an email address', 'Plots with no email for the person responsible. Ask when you see them; the committee sends everything by email.', null, ''));
     if (c.noPhone) todo.push(item('warn', c.noPhone, 'Get a phone number', 'Plots with no phone number for the person responsible.', null, ''));
-    if (c.jobsApproval) todo.push(item('info', c.jobsApproval, 'Job' + (c.jobsApproval > 1 ? 's' : '') + ' waiting for the next committee meeting', 'Put on the agenda.', mapLink, 'See the jobs'));
-    if (c.jobsOpen - c.jobsApproval) todo.push(item('info', c.jobsOpen - c.jobsApproval, 'Open job' + (c.jobsOpen - c.jobsApproval > 1 ? 's' : ''), 'Logged or approved and waiting to be done.', mapLink, 'See the jobs'));
+    if (c.jobsApproval) todo.push(item('info', c.jobsApproval, 'Job' + (c.jobsApproval > 1 ? 's' : '') + ' needing money approved', 'Put on the agenda.', mapLink, 'See the jobs'));
+    if (c.jobsOpen) todo.push(item('info', c.jobsOpen, 'Open job' + (c.jobsOpen > 1 ? 's' : ''), 'Pending or arranged, not yet done.', mapLink, 'See the jobs'));
     if (c.warnings) todo.push(item('bad', c.warnings, 'Warning' + (c.warnings > 1 ? 's' : '') + ' on record', 'Follow-up is the committee\'s; the rep checks the plot on the next walk.', null, ''));
     $('todo').innerHTML = todo.length ? todo.join('') : '<li><span class="n good">0</span><div class="t">Nothing outstanding</div></li>';
     $('which').textContent = (rep ? rep.name + ': ' : '') + 'the list of which plots (rent, email, phone) is about identifiable people, so it is not on this open page. ' +

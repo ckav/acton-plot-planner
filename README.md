@@ -12,6 +12,8 @@ Nothing about plot holders lives here. The map knows plot numbers and where thin
 
 - `index.html` - the page and its styles
 - `planner.js` - draws the map from the data and handles taps
+- `jobs.html`, `jobs.js` - the job board: every site's jobs on one page, with Print (see below)
+- `jobedit.js` - the four job statuses, the edit form and the offline edit queue, shared by the map and the job board
 - `data/sites.js` - one entry per site: base image, plots, paths, markers, jobs. Positions are pixels of the site's base image
 - `img/` - base satellite images (Google Earth; credit shown on the page)
 
@@ -27,10 +29,25 @@ The right-hand panel shows whatever was last tapped:
 
 - **A plot** - its card, with "Add / edit notes" (opens the check form for that plot).
 - **Jobs** (the chip) - the site's jobs, open ones first, each with a status. "Log a job" is also at the top of the page.
-- **A job** (tap its pin or its row) - what, where, how soon, who logged it, photo, the update history, and a form to set a new status with a note. Statuses: Logged, Needs approval at the next committee meeting, Approved - waiting to be done, Done, Not doing.
+- **A job** (tap its pin or its row) - what, where, how soon, who logged it, photo, and the job's latest position (status, who has it, money, what it is blocked by, expected by, latest line). "Edit this job" opens a form for every field; Save sends one `job-edit` message with only what changed. "Move pin" puts the pin wherever you tap next, on a plot or off one, then Save pin; only the pin moves. One pin per job. A link of the form `index.html?site=Bromyard&job=J3` opens that job on its pin. Statuses: Pending, Arranged, Done, Not doing (blank reads as Pending).
 - **Log a job** - what, a line more, how soon, near which plot, pin it on the map (tap), optional photo, your name.
 
-Jobs logged or updated on a phone are kept on that phone until the receiver is connected; then they are sent to the "Jobs" and "Job updates" tabs of the association sheet and read back, so every phone shows the same list. The three Bromyard jobs from the sketch are seeded in `data/sites.js`.
+Jobs logged on a phone are sent to the "Jobs" tab of the association sheet and read back, so every phone shows the same list. An edit made with no signal waits on the phone (`aga-edits-<site>`), shows on the row as "Not sent yet", and goes next time the planner opens with a connection or when "Send it now" is tapped. One row per job, no history: the row is the record. The three Bromyard jobs from the sketch (J1-J3) are put into the Jobs tab by the receiver's setup.
+
+## Job board (`jobs.html`, 2 Nov 2026)
+
+Every site's jobs on one page, behind the members' password, for the committee's standing "Site jobs" item. The board is a log, not a project record: it holds the latest position on each job and nothing of what came before (the minutes do that). The process it serves is in the project folder, `22-site-jobs-process.md`.
+
+- **Columns**, in the order they print: Ref, Site, Job, Status, Who, Money, Blocked by, Expected by, Latest, Logged, Urgent. Detail and the photo sit under the row when it is tapped.
+- **Status** is one of four: Pending (logged, nothing arranged - the list the committee looks at), Arranged (a person, work morning or contractor is booked; Expected by says when), Done (date in Latest; hidden behind "Show finished") and Not doing (reason in Latest). The old ladder (Logged, Needs approval, Approved, Done, Not doing) collapsed into this: the first three all became Pending.
+- **Money** is No, Needs approval or Approved. The amount goes in Latest; what was actually paid is the treasurer's record, not the board.
+- **Who** is the person or group dealing with it, blank if nobody yet. **Blocked by** names what has to happen first; if it names a person, that is who to chase.
+- **Editing.** Tap a row to change status, who, money, blocked by, expected by, latest, how soon and detail, or add a photo after logging. Anyone with the members' password or a rep link can edit, about ten people; admin-only editing is parked. The committee can also type straight into the Jobs tab: Status and Money have dropdowns there, and whatever is in the sheet is what the board shows.
+- **Print** gives an A4 landscape list, Pending first, urgent at the top, grouped by site.
+- **Offline.** An edit made with no signal shows on its row as "Not sent yet" and goes when there is one, or when "Send it now" is tapped on the job.
+- **Moving a pin** is done on the map: the row has a "Move the pin on the map" link that opens the job there. On a phone each job is a card. Shared code for both pages is in `jobedit.js`.
+
+In the sheet, the Jobs tab keeps the columns the planner already used (Id, Code, Logged, By, Site, What, Detail, How soon, Near plot, X, Y, Photo, Received, Photo status, Remove photo (committee), Plot item) and adds Status, Who, Money, Blocked by, Expected by and Latest on the end. A blank Status reads as Pending and a blank Money as No. The "Job updates" tab the earlier version kept is retired: setup copies each job's last status and note into the new columns once, renames the tab "Job updates (old)", and nothing reads or writes it after that.
 
 ## Moving around the map (2 Nov 2026)
 

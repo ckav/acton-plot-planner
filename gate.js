@@ -21,7 +21,7 @@
     offline: 'No connection. Try again when you have a signal.'
   };
 
-  window.AGA_GATE = { pw: pw, auth: auth, relock: function () { set('pw', null); lock(MSG.changed); } };
+  window.AGA_GATE = { pw: pw, key: key, auth: auth, relock: function () { set('pw', null); lock(MSG.changed); } };
   if (!CONFIG.submitUrl) return;   // demo with no receiver: nothing to protect
 
   var style = document.createElement('style');
