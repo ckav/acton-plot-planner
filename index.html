@@ -30,8 +30,13 @@
   .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
   @media (min-width: 900px) { .grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); align-items: start; } }
   figure { margin: 0; }
-  .map { background: #2B3A2E; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
-  .map svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .views { margin-bottom: 8px; }
+  .views .chip { min-height: 44px; }
+  .map { position: relative; background: #2B3A2E; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .map svg { display: block; width: 100%; height: 320px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .zoom { position: absolute; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .zoom button { width: 44px; height: 44px; padding: 0; border-radius: 8px; border: 1px solid rgba(0,0,0,.45); background: rgba(255,255,255,.94); color: var(--ink); font: 700 22px/1 system-ui, sans-serif; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .zoom button.fit { font-size: 13px; }
   figcaption { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); padding: 8px 2px 0; }
   .key { display: inline-flex; align-items: center; gap: 6px; }
   .sw { width: 22px; height: 14px; border-radius: 2px; background: #4E6B52; border: 2px solid #fff; box-shadow: 0 0 0 1px #2B3A2E; }
@@ -114,7 +119,11 @@
     </section>
     <div class="grid">
       <figure class="mapfig">
-        <div class="map"><svg id="map" role="img" aria-label="Site map"></svg></div>
+        <div class="chips views hidden" id="views" role="group" aria-label="Part of the site"></div>
+        <div class="map">
+          <svg id="map" role="img" aria-label="Site map" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="zoom"><button type="button" id="zoomIn" aria-label="Zoom in">+</button><button type="button" id="zoomOut" aria-label="Zoom out">&minus;</button><button type="button" class="fit" id="zoomFit" aria-label="Show the whole site">Fit</button></div>
+        </div>
         <figcaption id="legend"></figcaption>
       </figure>
       <aside class="card" id="card" aria-live="polite"></aside>
@@ -122,6 +131,7 @@
     <section class="about box">
       <div class="eyebrow">What this is</div>
       <p>A map per site with the plot numbers, paths, sheds, water and jobs. Tap a plot to see its card.</p>
+      <p><strong>Moving around the map.</strong> Drag with one finger to move it, and pinch with two to zoom in or out (or use the + and - buttons). Fit shows the whole site again. On a long site, the buttons above the map jump to one part of it.</p>
       <p>Nothing about plot holders lives on this page. The committee keeps that in its own record and looks it up by plot number. This demo shows where the details would sit, not the details.</p>
     </section>
   </div>

@@ -2,7 +2,7 @@
 
 Site maps for the allotments: plot numbers, paths, sheds, water and jobs, with a card per plot. Static page, no frameworks, no accounts, works on a phone.
 
-**Demo status.** Bromyard Avenue only. Plot numbers are provisional until the site rep confirms them. The plot card shows where details would sit; it holds none.
+**Status (2 Nov 2026).** Bromyard (numbers confirmed), Chestnuts and Perryn (from Claire's drawing, reps to confirm) are drawn; the Vale shows its boundary only until Goran marks the plots. The plot card shows where details would sit; it holds none.
 
 ## The rule this page follows
 
@@ -31,6 +31,10 @@ The right-hand panel shows whatever was last tapped:
 - **Log a job** - what, a line more, how soon, near which plot, pin it on the map (tap), optional photo, your name.
 
 Jobs logged or updated on a phone are kept on that phone until the receiver is connected; then they are sent to the "Jobs" and "Job updates" tabs of the association sheet and read back, so every phone shows the same list. The three Bromyard jobs from the sketch are seeded in `data/sites.js`.
+
+## Moving around the map (2 Nov 2026)
+
+Drag with one finger to move the map and pinch with two to zoom (or use the + and - buttons in the corner; Fit shows the whole site again). On a long site, buttons above the map jump to one part of it; these come from each site's `views` list in `data/sites.js` (`label`, `x`, `y`, `w`, `h` in image pixels, the first always the whole site). The walk sheet prints one map page per view. A link of the form `index.html?site=Chestnuts&plot=12` opens with that plot's card showing and the map zoomed in on it. Gates show with the Paths layer; job pins show while Jobs, a job or Log a job is open. A site's `markersDraft` list is kept but not drawn: Bromyard's gate, tap and tank positions sit there until a walk confirms them.
 
 ## Site dashboard (`dashboard.html`)
 
