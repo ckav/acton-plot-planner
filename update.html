@@ -23,8 +23,13 @@
   .lead { margin: 0 0 18px; }
   .plot { background: var(--green-soft); color: var(--green); border-radius: 10px; padding: 12px 14px; margin: 0 0 20px; }
   .plot strong { display: block; font-size: 20px; }
+  .plot .role { display: block; }
+  .value { font-size: 20px; font-weight: 600; margin: 0 0 4px; padding: 4px 0; }   /* the name: plain text on purpose, so it does not look like a box to tap */
+  /* The honeypot: a box a person never sees. Off screen rather than display:none, so a bot still fills it. */
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   fieldset { border: 0; padding: 0; margin: 0 0 20px; }
   legend, label.block { display: block; font-weight: 600; margin-bottom: 8px; }
+  legend { padding: 0; }
   .hint { color: var(--muted); margin: 6px 0 0; }
   input[type="text"], input[type="email"], input[type="tel"] { width: 100%; font: inherit; font-size: 18px; padding: 12px; min-height: 52px; border: 2px solid #7A7870; border-radius: 10px; background: var(--panel); }
   .opts { display: grid; gap: 8px; }
@@ -64,6 +69,10 @@
       <form id="askForm" novalidate>
         <label class="block" for="askEmail">Your email address</label>
         <input type="email" id="askEmail" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" enterkeyhint="send">
+        <div class="trap" aria-hidden="true">
+          <label for="leave_empty">Leave this empty</label>
+          <input type="text" id="leave_empty" name="leave_empty" tabindex="-1" autocomplete="off" aria-hidden="true">
+        </div>
         <button type="submit" class="btn big" id="askSend">Send me my link</button>
         <div id="askMsg" class="msg hidden" role="alert"></div>
       </form>
@@ -71,11 +80,12 @@
 
     <section id="edit" class="hidden">
       <h1 tabindex="-1">Your details</h1>
-      <div class="plot"><strong id="plotLine">Plot:</strong>If this is wrong, email <a class="mail" href="mailto:actongardening@gmail.com">actongardening@gmail.com</a></div>
+      <div class="plot"><strong id="plotLine">Plot:</strong><span class="role" id="roleLine"></span>If this is wrong, email <a class="mail" href="mailto:actongardening@gmail.com">actongardening@gmail.com</a></div>
       <form id="editForm" novalidate>
         <fieldset>
-          <label class="block" for="name">Name</label>
-          <input type="text" id="name" autocomplete="name" maxlength="80">
+          <legend>Name</legend>
+          <p class="value" id="nameLine"></p>
+          <p class="hint" id="nameNote">Your name is shown as it is on our record. A plot cannot be passed to someone else, so the name cannot be changed here. To correct a spelling, add a second contact, or give up your plot, email <a class="mail" href="mailto:actongardening@gmail.com">actongardening@gmail.com</a>.</p>
         </fieldset>
         <fieldset>
           <label class="block" for="email">Email</label>
@@ -83,8 +93,12 @@
           <p class="hint" id="emailHint">This is where we send your links.</p>
         </fieldset>
         <fieldset>
-          <label class="block" for="phone">Phone</label>
-          <input type="tel" id="phone" autocomplete="tel" inputmode="tel" maxlength="30">
+          <label class="block" for="phone">Mobile</label>
+          <input type="tel" id="phone" autocomplete="mobile tel" inputmode="tel" maxlength="30">
+        </fieldset>
+        <fieldset>
+          <label class="block" for="landline">Landline (if you have one)</label>
+          <input type="tel" id="landline" autocomplete="home tel" inputmode="tel" maxlength="30">
         </fieldset>
         <fieldset>
           <legend>What would you like to hear about?</legend>
