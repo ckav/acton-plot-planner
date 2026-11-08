@@ -17,18 +17,19 @@ var SCRIPT = path.join(__dirname, '..', 'apps-script', 'Members.gs');
 var BOOK = 'AGA members';
 var HOUR = 3600000;
 
-// People tab columns, in the spec's order.
-var PEOPLE_HEAD = ['Contact ID', 'Name', 'Email', 'Phone', 'Plots', 'Role', 'Shop updates', 'Volunteer rota', 'General news', 'Last updated'];
+// People tab columns, in the round 2 contract's order: Landline is last so nothing in the live sheet shifts.
+var PEOPLE_HEAD = ['Contact ID', 'Name', 'Email', 'Phone', 'Plots', 'Role', 'Shop updates', 'Volunteer rota', 'General news', 'Last updated', 'Landline'];
 
 // One responsible tenant and one co-occupier share Perryn 99. Five and Six are one household sharing
-// an email address (two People rows, one address). Four has no email at all.
+// an email address (two People rows, one address). Four has no email at all. One and Three have a
+// landline (Ofcom reserved numbers); the rest do not. Phone is the mobile only.
 var PEOPLE = [
-  ['C901', 'Test Person One', 'one@example.com', '07700 900001', 'Perryn 99', 'Responsible', 'No', 'No', 'Yes', ''],
-  ['C902', 'Test Person Two', 'two@example.com', '07700 900002', 'Perryn 99', 'Co-occupier', 'Yes', 'No', 'Yes', ''],
-  ['C903', 'Test Person Three', 'three@example.com', '', 'Vale 98, Vale 97', 'Responsible', 'No', 'Yes', 'Yes', ''],
-  ['C904', 'Test Person Four', '', '', 'Bromyard 96', 'Responsible', 'No', 'No', 'Yes', ''],
-  ['C905', 'Test Person Five', 'shared@example.com', '07700 900005', 'Southfield 95', 'Responsible', 'No', 'No', 'Yes', ''],
-  ['C906', 'Test Person Six', 'shared@example.com', '', 'Southfield 95', 'Co-occupier', 'No', 'No', 'No', '']
+  ['C901', 'Test Person One', 'one@example.com', '07700 900001', 'Perryn 99', 'Responsible', 'No', 'No', 'Yes', '', '020 7946 0001'],
+  ['C902', 'Test Person Two', 'two@example.com', '07700 900002', 'Perryn 99', 'Co-occupier', 'Yes', 'No', 'Yes', '', ''],
+  ['C903', 'Test Person Three', 'three@example.com', '', 'Vale 98, Vale 97', 'Responsible', 'No', 'Yes', 'Yes', '', '01632 960003'],
+  ['C904', 'Test Person Four', '', '', 'Bromyard 96', 'Responsible', 'No', 'No', 'Yes', '', ''],
+  ['C905', 'Test Person Five', 'shared@example.com', '07700 900005', 'Southfield 95', 'Responsible', 'No', 'No', 'Yes', '', ''],
+  ['C906', 'Test Person Six', 'shared@example.com', '', 'Southfield 95', 'Co-occupier', 'No', 'No', 'No', '', '']
 ];
 
 function scriptExists() { return fs.existsSync(SCRIPT); }
@@ -69,7 +70,7 @@ function makeApp(options) {
       if (!sh) throw new Error('setup() did not create a People tab');
       var rows = PEOPLE.map(function (r) { return r.slice(); });
       for (var i = 1; i <= (opts.extraPeople || 0); i++) {
-        rows.push(['C' + (910 + i), 'Test Person ' + (910 + i), 'person' + (910 + i) + '@example.com', '', 'Perryn ' + (100 + i), 'Responsible', 'No', 'No', 'Yes', '']);
+        rows.push(['C' + (910 + i), 'Test Person ' + (910 + i), 'person' + (910 + i) + '@example.com', '', 'Perryn ' + (100 + i), 'Responsible', 'No', 'No', 'Yes', '', '']);
       }
       rows.forEach(function (r) { sh.appendRow(r); });
       return app;

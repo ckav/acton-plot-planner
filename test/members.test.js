@@ -1,6 +1,8 @@
 /* End-to-end tests for the member self-service script (apps-script/Members.gs), written from
-   briefs/us1-build-spec.md. Each test starts a fresh fake world: new sheet, no emails, empty cache,
-   clock at 10:00 on 7 Nov 2026. Every person here is made up (see harness.js).
+   briefs/us1-build-spec.md, including the round 2 contract (8 Nov 2026): an eleventh People column,
+   Landline; Name read-only for members; a honeypot on request. Each test starts a fresh fake world:
+   new sheet, no emails, empty cache, clock at 10:00 on 7 Nov 2026. Every person here is made up
+   (see harness.js).
    Run with: npm test (from plot-planner/). */
 'use strict';
 
@@ -11,8 +13,8 @@ var h = require('./harness');
 var HOUR = h.HOUR;
 var skip = h.scriptExists() ? false : 'apps-script/Members.gs is not written yet';
 
-// Column positions from the spec.
-var P = { id: 0, name: 1, email: 2, phone: 3, plots: 4, role: 5, shop: 6, rota: 7, news: 8, updated: 9 };
+// Column positions from the spec (round 2: Landline is column K, position 10).
+var P = { id: 0, name: 1, email: 2, phone: 3, plots: 4, role: 5, shop: 6, rota: 7, news: 8, updated: 9, landline: 10 };
 var L = { token: 0, id: 1, sentTo: 2, made: 3, expires: 4, used: 5 };
 var C = { when: 0, id: 1, what: 2 };
 
@@ -22,9 +24,17 @@ function ms(v) {
   return isNaN(t) ? NaN : t;
 }
 function linkFor(app, token) { return app.links().filter(function (r) { return r[L.token] === token; })[0]; }
+// The round 2 save body: { action, t, email, phone, landline, shop, rota, news }. No name. These are
+// Test Person One's own values, so a plain goodSave changes nothing.
 function goodSave(token, extra) {
-  return Object.assign({ action: 'save', t: token, name: 'Test Person One', email: 'one@example.com', phone: '07700 900001', shop: false, rota: false, news: true }, extra || {});
+  return Object.assign({ action: 'save', t: token, email: 'one@example.com', phone: '07700 900001', landline: '020 7946 0001', shop: false, rota: false, news: true }, extra || {});
 }
+// Test Person Two's own values, likewise.
+function twoSave(token, extra) {
+  return Object.assign({ action: 'save', t: token, email: 'two@example.com', phone: '07700 900002', landline: '', shop: true, rota: false, news: true }, extra || {});
+}
+// A fresh link for an address that has already had its three for the day: the clock moves on a day first.
+function nextDayToken(app, email) { app.advance(24 * HOUR + 60000); return app.request(email); }
 
 test('Members.gs exists and loads with the fake Apps Script globals', function () {
   assert.ok(h.scriptExists(), 'expected ' + h.SCRIPT);
@@ -48,6 +58,38 @@ test('setup makes the "AGA members" sheet with the four tabs and their headings 
   assert.deepStrictEqual(app.tab('Settings').head, ['Setting', 'Value', 'What it does']);
   assert.deepStrictEqual(app.settings(), [['Page address', 'https://ckav.github.io/acton-plot-planner/update.html', 'Where the link in the email points.']]);
   assert.ok(app.fake.log.some(function (l) { return l.indexOf(book.getUrl()) >= 0; }), 'setup should log the sheet URL');
+});
+
+test('the People tab has eleven headings in the contract\'s order, Landline last', { skip: skip }, function () {
+  var app = h.makeApp();
+  app.setup();
+  var head = app.tab('People').head;
+  assert.strictEqual(head.length, 11, 'eleven headings; got ' + JSON.stringify(head));
+  assert.deepStrictEqual(head, ['Contact ID', 'Name', 'Email', 'Phone', 'Plots', 'Role', 'Shop updates', 'Volunteer rota', 'General news', 'Last updated', 'Landline']);
+  assert.strictEqual(head[10], 'Landline', 'Landline is column K, so nothing in the live sheet shifts');
+});
+
+test('setup on a sheet made with ten headings adds the Landline heading and leaves the rows alone', { skip: skip }, function () {
+  var app = h.makeApp();
+  // A People tab as the live sheet has it before this round: ten headings, ten-column rows.
+  var ss = app.fake.globals.SpreadsheetApp.create(h.BOOK);
+  var sh = ss.getSheets()[0];
+  sh.setName('People');
+  sh.appendRow(h.PEOPLE_HEAD.slice(0, 10));
+  h.PEOPLE.forEach(function (r) { sh.appendRow(r.slice(0, 10)); });
+  app.fake.state.props.sheetId = ss.getId();
+  assert.strictEqual(app.tab('People').head.length, 10, 'the sheet starts with ten headings');
+  app.setup();
+  assert.deepStrictEqual(app.tab('People').head, h.PEOPLE_HEAD, 'eleven headings after setup, Landline added at K');
+  var rows = app.people();
+  assert.strictEqual(rows.length, h.PEOPLE.length, 'no rows added or lost');
+  rows.forEach(function (r, i) { assert.deepStrictEqual(r.slice(0, 10), h.PEOPLE[i].slice(0, 10), 'row ' + (i + 2) + ' unchanged in columns A to J'); });
+  rows.forEach(function (r, i) { assert.strictEqual(r[P.landline], '', 'row ' + (i + 2) + ' has a blank Landline'); });
+  // and a ten-column person's record reads back with a blank landline, not an error
+  var rec = app.get({ action: 'record', t: app.request('one@example.com') });
+  assert.strictEqual(rec.ok, true, JSON.stringify(rec));
+  assert.strictEqual(rec.landline, '');
+  assert.strictEqual(app.fake.books.length, 1, 'setup used the existing sheet');
 });
 
 test('running setup twice changes nothing', { skip: skip }, function () {
@@ -180,6 +222,67 @@ test('two people sharing one email each get their own link, greeted by their own
   assert.strictEqual(byName['Test Person Six'].phone, '');
 });
 
+// ---- request: the honeypot (round 2, B4 and review R5). A bot that fills the hidden "leave_empty" box gets a
+// polite ok and nothing else. (The box was called "website" until review R5: password managers fill that name.)
+
+test('a request with the honeypot filled answers ok at once: no Links row, no email, no lock', { skip: skip }, function () {
+  var app = h.readyApp();
+  var res = app.post({ action: 'request', email: 'one@example.com', leave_empty: 'http://spam.example.com' });
+  assert.deepStrictEqual(res, { ok: true }, 'the same answer a real request gets, so the bot learns nothing');
+  assert.strictEqual(app.emails().length, 0, 'no email sent');
+  assert.strictEqual(app.links().length, 0, 'no Links row');
+  assert.deepStrictEqual(app.fake.locks, [], 'answered before the lock is taken');
+  assert.strictEqual(app.fake.lockHeld(), false);
+  assert.strictEqual(app.people().length, h.PEOPLE.length, 'nothing touched');
+});
+
+test('the honeypot catches a filled box whatever the email, even one that is not on the list', { skip: skip }, function () {
+  var app = h.readyApp();
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'nobody@example.com', leave_empty: 'x' }), { ok: true });
+  assert.deepStrictEqual(app.post({ action: 'request', email: '', leave_empty: 'x' }), { ok: true }, 'even a blank email answers ok, not "email": nothing is read');
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'shared@example.com', leave_empty: ' ' }), { ok: true }, 'a single space is a non-empty string');
+  assert.strictEqual(app.emails().length, 0);
+  assert.strictEqual(app.links().length, 0);
+  assert.deepStrictEqual(app.fake.locks, []);
+});
+
+test('non-string junk in the honeypot key (a number, an array, an object, a boolean) counts as filled', { skip: skip }, function () {
+  var app = h.readyApp();
+  [1, 0, 42.5, ['x'], ['a', 'b'], { a: 1 }, true, false].forEach(function (v) {
+    assert.deepStrictEqual(app.post({ action: 'request', email: 'one@example.com', leave_empty: v }), { ok: true }, 'for ' + JSON.stringify(v));
+  });
+  assert.strictEqual(app.emails().length, 0, 'no email for any of them');
+  assert.strictEqual(app.links().length, 0, 'no Links row for any of them');
+  assert.deepStrictEqual(app.fake.locks, [], 'never reached the lock');
+  // null is "nothing sent": the request goes through
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'one@example.com', leave_empty: null }), { ok: true });
+  assert.strictEqual(app.emails().length, 1, 'null is treated as empty');
+});
+
+test('an empty or missing honeypot lets a real request through as before', { skip: skip }, function () {
+  var app = h.readyApp();
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'one@example.com', leave_empty: '' }), { ok: true });
+  assert.strictEqual(app.emails().length, 1, 'the page always sends leave_empty, empty for a person');
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'two@example.com' }), { ok: true });
+  assert.strictEqual(app.emails().length, 2, 'no leave_empty key at all is fine too');
+  assert.strictEqual(app.links().length, 2);
+});
+
+test('the old key "website" is not the honeypot any more', { skip: skip }, function () {
+  var app = h.readyApp();
+  assert.deepStrictEqual(app.post({ action: 'request', email: 'one@example.com', website: 'https://example.com' }), { ok: true });
+  assert.strictEqual(app.emails().length, 1, 'a request carrying an old-style website key is an ordinary request');
+  assert.strictEqual(app.links().length, 1);
+});
+
+test('a filled honeypot does not count against the per-email limit', { skip: skip }, function () {
+  var app = h.readyApp();
+  for (var i = 0; i < 5; i++) app.post({ action: 'request', email: 'one@example.com', leave_empty: 'spam' });
+  assert.strictEqual(app.links().length, 0);
+  app.post({ action: 'request', email: 'one@example.com', leave_empty: '' });
+  assert.strictEqual(app.emails().length, 1, 'the real request after five bot hits still gets its email');
+});
+
 test('the 4th request for one email in a day sends nothing but still says ok', { skip: skip }, function () {
   var app = h.readyApp();
   for (var i = 0; i < 3; i++) assert.deepStrictEqual(app.post({ action: 'request', email: 'one@example.com' }), { ok: true });
@@ -249,10 +352,22 @@ test('a good link shows only that person\'s own row, nothing else', { skip: skip
   var app = h.readyApp();
   var token = app.request('one@example.com');
   var rec = app.get({ action: 'record', t: token });
-  assert.deepStrictEqual(rec, { ok: true, name: 'Test Person One', email: 'one@example.com', phone: '07700 900001', plots: 'Perryn 99', role: 'Responsible', shop: false, rota: false, news: true });
-  assert.deepStrictEqual(Object.keys(rec).sort(), ['email', 'name', 'news', 'ok', 'phone', 'plots', 'role', 'rota', 'shop'], 'no extra keys (no Contact ID, no token, nobody else)');
+  assert.deepStrictEqual(rec, { ok: true, name: 'Test Person One', email: 'one@example.com', phone: '07700 900001', landline: '020 7946 0001', plots: 'Perryn 99', role: 'Responsible', shop: false, rota: false, news: true });
+  assert.deepStrictEqual(Object.keys(rec).sort(), ['email', 'landline', 'name', 'news', 'ok', 'phone', 'plots', 'role', 'rota', 'shop'], 'no extra keys (no Contact ID, no token, nobody else)');
   var text = JSON.stringify(rec);
   assert.ok(text.indexOf('Two') < 0 && text.indexOf('Three') < 0 && text.indexOf('C901') < 0, 'no other people and no Contact ID in the answer');
+});
+
+test('the record returns the landline as a string, blank when there is none', { skip: skip }, function () {
+  var app = h.readyApp();
+  var one = app.get({ action: 'record', t: app.request('one@example.com') });
+  assert.strictEqual(one.landline, '020 7946 0001');
+  var three = app.get({ action: 'record', t: app.request('three@example.com') });
+  assert.strictEqual(three.landline, '01632 960003');
+  assert.strictEqual(three.phone, '', 'a landline with no mobile is fine');
+  var two = app.get({ action: 'record', t: app.request('two@example.com') });
+  assert.strictEqual(two.landline, '', 'blank, not null or undefined');
+  assert.strictEqual(typeof two.landline, 'string');
 });
 
 test('preferences come back as true/false, not Yes/No', { skip: skip }, function () {
@@ -333,16 +448,17 @@ test('no other GET action reads anything', { skip: skip }, function () {
 
 // ---- save
 
-test('a save changes name, phone and preferences, stamps Last updated, logs a Changes row and uses up the link', { skip: skip }, function () {
+test('a save changes phone, landline and preferences, stamps Last updated, logs a Changes row and uses up the link', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
   app.advance(5 * 60000);
-  var res = app.post({ action: 'save', t: token, name: 'Test Person Won', email: 'one@example.com', phone: '07700 900099', shop: true, rota: true, news: false });
+  var res = app.post({ action: 'save', t: token, email: 'one@example.com', phone: '07700 900099', landline: '020 7946 0099', shop: true, rota: true, news: false });
   assert.deepStrictEqual(res, { ok: true });
   var p = app.person('C901');
-  assert.strictEqual(p.Name, 'Test Person Won');
+  assert.strictEqual(p.Name, 'Test Person One', 'the name is not the member\'s to change');
   assert.strictEqual(p.Email, 'one@example.com');
   assert.strictEqual(p.Phone, '07700 900099');
+  assert.strictEqual(p.Landline, '020 7946 0099');
   assert.strictEqual(p['Shop updates'], 'Yes');
   assert.strictEqual(p['Volunteer rota'], 'Yes');
   assert.strictEqual(p['General news'], 'No');
@@ -353,17 +469,72 @@ test('a save changes name, phone and preferences, stamps Last updated, logs a Ch
   assert.strictEqual(ch.length, 1);
   assert.strictEqual(ms(ch[0][C.when]), app.fake.now());
   assert.strictEqual(ch[0][C.id], 'C901');
-  ['Name', 'Phone', 'Shop updates', 'Volunteer rota', 'General news'].forEach(function (f) { assert.ok(String(ch[0][C.what]).indexOf(f) >= 0, 'What changed should name ' + f + ': ' + ch[0][C.what]); });
+  ['Phone', 'Landline', 'Shop updates', 'Volunteer rota', 'General news'].forEach(function (f) { assert.ok(String(ch[0][C.what]).indexOf(f) >= 0, 'What changed should name ' + f + ': ' + ch[0][C.what]); });
   assert.ok(String(ch[0][C.what]).indexOf('Email') < 0, 'Email did not change');
+  assert.ok(String(ch[0][C.what]).indexOf('Name') < 0, 'Name is never listed');
   assert.strictEqual(ms(linkFor(app, token)[L.used]), app.fake.now(), 'Used is stamped');
 });
 
 test('the Changes row names fields only, never the old or new values', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
-  app.post(goodSave(token, { name: 'Test Person Renamed', phone: '07700 123456', email: 'won@example.com' }));
+  app.post(goodSave(token, { phone: '07700 123456', email: 'won@example.com', landline: '01632 960123' }));
   var what = String(app.changes()[0][C.what]);
-  ['Test Person One', 'Test Person Renamed', '07700 900001', '07700 123456', 'one@example.com', 'won@example.com'].forEach(function (v) { assert.ok(what.indexOf(v) < 0, 'value leaked into Changes: ' + what); });
+  ['Test Person One', '07700 900001', '07700 123456', 'one@example.com', 'won@example.com', '020 7946 0001', '01632 960123'].forEach(function (v) { assert.ok(what.indexOf(v) < 0, 'value leaked into Changes: ' + what); });
+});
+
+test('the Changes row names Landline when only the landline changed, and never Name', { skip: skip }, function () {
+  var app = h.readyApp();
+  var token = app.request('one@example.com');
+  assert.deepStrictEqual(app.post(goodSave(token, { landline: '01632 960077' })), { ok: true });
+  assert.strictEqual(String(app.changes()[0][C.what]), 'Landline');
+  // a name sent along with a real change is still not a change
+  var t2 = app.request('one@example.com');
+  assert.deepStrictEqual(app.post(goodSave(t2, { name: 'Test Person Renamed', landline: '', phone: '07700 900011' })), { ok: true });
+  var what = String(app.changes()[1][C.what]);
+  assert.ok(what.indexOf('Phone') >= 0 && what.indexOf('Landline') >= 0, 'Phone and Landline changed: ' + what);
+  assert.ok(what.indexOf('Name') < 0, 'Name is never listed: ' + what);
+  assert.strictEqual(app.person('C901').Landline, '', 'a landline can be cleared');
+});
+
+// ---- save: Name is read-only for members (round 2, B6): a plot is not transferable, so the name on the record stays.
+
+test('a save ignores a name sent, whatever its shape, and never writes column B', { skip: skip }, function () {
+  var app = h.readyApp();
+  var names = ['Test Person Won', '', '   ', 'N'.repeat(2000), 'Test\nPerson\r\n\tOne', '=HYPERLINK("x")', '<b>Test</b> Person', 42, null, { a: 1 }];
+  var people = ['one@example.com', 'two@example.com', 'three@example.com'];
+  var people_ = [goodSave, twoSave, function (t, x) { return Object.assign({ action: 'save', t: t, email: 'three@example.com', phone: '', landline: '01632 960003', shop: false, rota: true, news: true }, x || {}); }];
+  names.forEach(function (name, i) {
+    var who = i % 3, token = i < 3 ? app.request(people[who]) : nextDayToken(app, people[who]);
+    var res = app.post(people_[who](token, { name: name, phone: '07700 9000' + (10 + i) }));
+    assert.deepStrictEqual(res, { ok: true }, 'name ' + JSON.stringify(name) + ' is ignored, not refused: ' + JSON.stringify(res));
+  });
+  assert.strictEqual(app.person('C901').Name, 'Test Person One');
+  assert.strictEqual(app.person('C902').Name, 'Test Person Two');
+  assert.strictEqual(app.person('C903').Name, 'Test Person Three');
+  assert.deepStrictEqual(app.people().map(function (r) { return r[P.name]; }), h.PEOPLE.map(function (r) { return r[1]; }), 'column B is untouched on every row');
+  app.changes().forEach(function (r) { assert.ok(String(r[C.what]).indexOf('Name') < 0, 'Name never appears in Changes: ' + r[C.what]); });
+  assert.strictEqual(app.changes().length, names.length, 'every save went through');
+});
+
+test('a save with no name at all is fine: the name is not read', { skip: skip }, function () {
+  var app = h.readyApp();
+  var token = app.request('one@example.com');
+  var body = goodSave(token, { phone: '07700 900011' });
+  assert.ok(!('name' in body), 'the test body carries no name');
+  assert.deepStrictEqual(app.post(body), { ok: true });
+  assert.strictEqual(app.person('C901').Name, 'Test Person One');
+  assert.strictEqual(app.person('C901').Phone, '07700 900011');
+  assert.strictEqual(String(app.changes()[0][C.what]), 'Phone');
+});
+
+test('there is no "name" error any more: a save never answers error "name"', { skip: skip }, function () {
+  var app = h.readyApp();
+  var token = app.request('one@example.com');
+  [goodSave(token, { name: '' }), goodSave(token, { name: 'N'.repeat(81) }), goodSave(token, { name: '=1+1' })].forEach(function (body) {
+    var res = app.post(body);
+    assert.notStrictEqual(res.error, 'name', 'answered "name" for ' + JSON.stringify(body.name).slice(0, 20));
+  });
 });
 
 test('a save with nothing changed still says ok and uses the link', { skip: skip }, function () {
@@ -400,15 +571,16 @@ test('the lock is released even when the save is refused', { skip: skip }, funct
   var app = h.readyApp();
   app.post(goodSave('f'.repeat(64)));
   app.post(goodSave(app.request('one@example.com'), { phone: 'not a number' }));
+  app.post(goodSave(app.request('one@example.com'), { landline: 'not a number' }));
   assert.strictEqual(app.fake.lockHeld(), false);
   // and a later save still works
-  assert.deepStrictEqual(app.post(goodSave(app.request('two@example.com'), { name: 'Test Person Two', email: 'two@example.com', phone: '' })), { ok: true });
+  assert.deepStrictEqual(app.post(twoSave(app.request('two@example.com'), { phone: '' })), { ok: true });
 });
 
 test('a save cannot change Plots, Role or Contact ID even if they are sent', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('two@example.com');
-  var res = app.post({ action: 'save', t: token, name: 'Test Person Two', email: 'two@example.com', phone: '07700 900002', shop: true, rota: false, news: true,
+  var res = app.post({ action: 'save', t: token, email: 'two@example.com', phone: '07700 900002', landline: '', shop: true, rota: false, news: true,
     plots: 'Vale 1', role: 'Responsible', contactId: 'C999', id: 'C999', 'Contact ID': 'C999', Plots: 'Vale 1', Role: 'Responsible', updated: '2020-01-01', lastUpdated: '2020-01-01' });
   assert.strictEqual(res.ok, true, JSON.stringify(res));
   var p = app.person('C902');
@@ -423,39 +595,56 @@ test('a save cannot change Plots, Role or Contact ID even if they are sent', { s
 test('a save only touches the row the link belongs to', { skip: skip }, function () {
   var app = h.readyApp();
   var before = JSON.stringify(app.people().filter(function (r) { return r[P.id] !== 'C902'; }));
-  app.post(goodSave(app.request('two@example.com'), { name: 'Test Person Too', email: 'two@example.com', phone: '', shop: false, rota: true, news: false }));
+  app.post(twoSave(app.request('two@example.com'), { phone: '07700 900022', landline: '020 7946 0022', shop: false, rota: true, news: false }));
   var after = JSON.stringify(app.people().filter(function (r) { return r[P.id] !== 'C902'; }));
   assert.strictEqual(after, before, 'every other row is untouched');
-  assert.strictEqual(app.person('C902').Name, 'Test Person Too');
+  assert.strictEqual(app.person('C902').Phone, '07700 900022');
+  assert.strictEqual(app.person('C902').Landline, '020 7946 0022');
 });
 
-test('a 2,000-character name is cleaned to 80 characters or refused', { skip: skip }, function () {
+// ---- save: the landline (round 2). Optional, column K, checked like the mobile.
+
+test('a landline is saved to column K and comes back on the record', { skip: skip }, function () {
   var app = h.readyApp();
-  var token = app.request('one@example.com');
-  var res = app.post(goodSave(token, { name: 'N'.repeat(2000) }));
-  if (res.ok) assert.ok(String(app.person('C901').Name).length <= 80, 'stored name must be at most 80 chars');
-  else { assert.deepStrictEqual(res, { ok: false, error: 'name' }); assert.strictEqual(app.person('C901').Name, 'Test Person One'); }
+  var token = app.request('two@example.com');
+  assert.deepStrictEqual(app.post(twoSave(token, { landline: '01632 960010' })), { ok: true });
+  assert.strictEqual(app.people()[1][P.landline], '01632 960010', 'column K of Test Person Two\'s row');
+  assert.strictEqual(app.person('C902').Landline, '01632 960010');
+  assert.strictEqual(app.person('C902').Phone, '07700 900002', 'the mobile is separate');
+  var rec = app.get({ action: 'record', t: app.request('two@example.com') });
+  assert.strictEqual(rec.landline, '01632 960010');
+  assert.strictEqual(rec.phone, '07700 900002');
 });
 
-test('a name with newlines and tabs is cleaned or refused, never stored with them', { skip: skip }, function () {
+test('a landline with +44 and brackets is kept as typed, and a missing landline saves as blank', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
-  var res = app.post(goodSave(token, { name: 'Test\nPerson\r\n\tOne' }));
-  var stored = String(app.person('C901').Name);
-  assert.ok(!/[\r\n\t]/.test(stored), 'no newline or tab in the sheet: ' + JSON.stringify(stored));
-  if (!res.ok) assert.deepStrictEqual(res, { ok: false, error: 'name' });
+  assert.deepStrictEqual(app.post(goodSave(token, { landline: '+44 (0)20 7946 0001' })), { ok: true });
+  assert.strictEqual(app.person('C901').Landline, '+44 (0)20 7946 0001');
+  var body = goodSave(app.request('one@example.com')); delete body.landline;
+  assert.deepStrictEqual(app.post(body), { ok: true });
+  assert.strictEqual(app.person('C901').Landline, '', 'no landline in the body means none on the record');
 });
 
-test('a blank or missing name is refused with "name" and nothing changes', { skip: skip }, function () {
+test('a bad landline on save is refused with "landline" and nothing changes', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
-  assert.deepStrictEqual(app.post(goodSave(token, { name: '' })), { ok: false, error: 'name' });
-  assert.deepStrictEqual(app.post(goodSave(token, { name: '   ' })), { ok: false, error: 'name' });
-  var noName = goodSave(token); delete noName.name;
-  assert.deepStrictEqual(app.post(noName), { ok: false, error: 'name' });
-  assert.deepStrictEqual(app.post(goodSave(token, { name: 'N'.repeat(81) })), { ok: false, error: 'name' });
-  assert.strictEqual(app.person('C901').Name, 'Test Person One');
+  ['not a number', '020 794O 0001', '1'.repeat(31), '020 7946 0001; DROP TABLE People', '<b>1</b>', '=1+1', 'landline@example.com'].forEach(function (v) {
+    assert.deepStrictEqual(app.post(goodSave(token, { landline: v })), { ok: false, error: 'landline' }, 'for ' + JSON.stringify(v));
+  });
+  assert.strictEqual(app.person('C901').Landline, '020 7946 0001');
+  assert.strictEqual(app.person('C901').Phone, '07700 900001');
   assert.strictEqual(app.changes().length, 0);
+  assert.strictEqual(linkFor(app, token)[L.used], '', 'a refused save does not spend the link');
+  assert.deepStrictEqual(app.post(goodSave(token, { landline: '1'.repeat(30) })), { ok: true }, 'thirty digits is the most a landline may be');
+});
+
+test('a bad mobile is "phone" and a bad landline is "landline": the mobile is checked first', { skip: skip }, function () {
+  var app = h.readyApp();
+  var token = app.request('one@example.com');
+  assert.deepStrictEqual(app.post(goodSave(token, { phone: 'bad', landline: 'bad' })), { ok: false, error: 'phone' });
+  assert.deepStrictEqual(app.post(goodSave(token, { phone: '07700 900001', landline: 'bad' })), { ok: false, error: 'landline' });
+  assert.deepStrictEqual(app.post(goodSave(token, { phone: 'bad', landline: '' })), { ok: false, error: 'phone' });
 });
 
 test('a bad email on save is refused with "email"', { skip: skip }, function () {
@@ -477,14 +666,14 @@ test('a bad phone on save is refused with "phone", an empty phone is fine', { sk
   assert.deepStrictEqual(app.post(goodSave(token, { phone: '+44 (0)7700 900 001' })), { ok: true });
   assert.strictEqual(app.person('C901').Phone, '+44 (0)7700 900 001');
   var t2 = app.request('two@example.com');
-  assert.deepStrictEqual(app.post(goodSave(t2, { name: 'Test Person Two', email: 'two@example.com', phone: '' })), { ok: true });
+  assert.deepStrictEqual(app.post(twoSave(t2, { phone: '' })), { ok: true });
   assert.strictEqual(app.person('C902').Phone, '');
 });
 
 test('the token is checked before the fields, so a bad link with bad fields says "expired"', { skip: skip }, function () {
   var app = h.readyApp();
-  assert.deepStrictEqual(app.post(goodSave('f'.repeat(64), { name: '', phone: 'x' })), { ok: false, error: 'expired' });
-  assert.deepStrictEqual(app.post(goodSave('', { name: '' })), { ok: false, error: 'expired' });
+  assert.deepStrictEqual(app.post(goodSave('f'.repeat(64), { email: '', phone: 'x', landline: 'x' })), { ok: false, error: 'expired' });
+  assert.deepStrictEqual(app.post(goodSave('', { landline: 'x' })), { ok: false, error: 'expired' });
 });
 
 test('a refused save does not use up the link: fixing the field and saving again works', { skip: skip }, function () {
@@ -499,7 +688,7 @@ test('a refused save does not use up the link: fixing the field and saving again
 test('preference values are taken as true/false and stored as Yes/No', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('three@example.com');
-  assert.deepStrictEqual(app.post({ action: 'save', t: token, name: 'Test Person Three', email: 'three@example.com', phone: '', shop: true, rota: false, news: true }), { ok: true });
+  assert.deepStrictEqual(app.post({ action: 'save', t: token, email: 'three@example.com', phone: '', landline: '01632 960003', shop: true, rota: false, news: true }), { ok: true });
   var p = app.person('C903');
   assert.deepStrictEqual([p['Shop updates'], p['Volunteer rota'], p['General news']], ['Yes', 'No', 'Yes']);
   // odd values cannot smuggle text into the sheet
@@ -509,38 +698,46 @@ test('preference values are taken as true/false and stored as Yes/No', { skip: s
   [q['Shop updates'], q['Volunteer rota'], q['General news']].forEach(function (v) { assert.ok(v === 'Yes' || v === 'No', 'preference cell must be Yes or No, got ' + JSON.stringify(v) + ' (save said ' + JSON.stringify(res) + ')'); });
 });
 
-test('a name or email that starts with "=" (a spreadsheet formula) is refused', { skip: skip }, function () {
+test('an email, phone or landline that starts with "=" (a spreadsheet formula) is refused; a name that does is simply ignored', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
-  assert.deepStrictEqual(app.post(goodSave(token, { name: '=HYPERLINK("x")' })), { ok: false, error: 'name' });
-  assert.deepStrictEqual(app.post(goodSave(token, { name: '  =1+1' })), { ok: false, error: 'name' }, 'leading spaces do not hide the =');
   assert.deepStrictEqual(app.post(goodSave(token, { email: '=HYPERLINK("x")@example.com' })), { ok: false, error: 'email' });
+  assert.deepStrictEqual(app.post(goodSave(token, { email: '  =1+1@example.com' })), { ok: false, error: 'email' }, 'leading spaces do not hide the =');
   assert.deepStrictEqual(app.post(goodSave(token, { phone: '=1+1' })), { ok: false, error: 'phone' });
+  assert.deepStrictEqual(app.post(goodSave(token, { landline: '=1+1' })), { ok: false, error: 'landline' });
   var p = app.person('C901');
-  assert.deepStrictEqual([p.Name, p.Email, p.Phone], ['Test Person One', 'one@example.com', '07700 900001'], 'nothing changed');
+  assert.deepStrictEqual([p.Name, p.Email, p.Phone, p.Landline], ['Test Person One', 'one@example.com', '07700 900001', '020 7946 0001'], 'nothing changed');
   assert.strictEqual(app.changes().length, 0);
   assert.strictEqual(linkFor(app, token)[L.used], '', 'the link is still usable');
-  // an = later in the text is just text
-  assert.deepStrictEqual(app.post(goodSave(token, { name: 'Test Person One (plot = 99)' })), { ok: true });
+  // a formula in the name goes nowhere: not refused, not written
+  assert.deepStrictEqual(app.post(goodSave(token, { name: '=HYPERLINK("x")' })), { ok: true });
+  assert.strictEqual(app.person('C901').Name, 'Test Person One');
 });
 
-test('HTML in a name is stored as plain text and does not break anything', { skip: skip }, function () {
-  var app = h.readyApp();
-  var token = app.request('one@example.com');
-  var res = app.post(goodSave(token, { name: '<b>Test</b> Person' }));
-  assert.strictEqual(res.ok, true, JSON.stringify(res));
-  assert.strictEqual(typeof app.person('C901').Name, 'string');
-  assert.strictEqual(app.people().length, h.PEOPLE.length);
-});
-
-test('setup makes the Name, Email and Phone columns plain text so a phone keeps its leading zero', { skip: skip }, function () {
+test('setup makes columns B to D and K plain text for rows 2 to 2001, so a phone keeps its leading zero', { skip: skip }, function () {
   var app = h.makeApp();
   app.setup();
   var f = app.fake.formats('People');
-  [2, 3, 4].forEach(function (col) {
-    var rows = Object.keys(f).filter(function (k) { return k.split(',')[1] === String(col) && f[k] === '@'; });
-    assert.ok(rows.length >= 2, 'People column ' + col + ' should be formatted as text (@) for the data rows; formats seen: ' + JSON.stringify(Object.keys(f).slice(0, 5)));
+  [2, 3, 4, 11].forEach(function (col) {
+    var missing = [];
+    for (var row = 2; row <= 2001; row++) if (f[row + ',' + col] !== '@') missing.push(row);
+    assert.deepStrictEqual(missing, [], 'People column ' + col + ' should be text (@) on every row from 2 to 2001; rows without it: ' + missing.slice(0, 5).join(', ') + (missing.length > 5 ? '...' : ''));
+    assert.notStrictEqual(f['1,' + col], '@', 'the heading row of column ' + col + ' is not formatted');
+    assert.notStrictEqual(f['2002,' + col], '@', 'the formatting of column ' + col + ' stops at row 2001');
   });
+});
+
+test('the Landline format is applied again when setup runs on a sheet that had ten columns', { skip: skip }, function () {
+  var app = h.makeApp();
+  var ss = app.fake.globals.SpreadsheetApp.create(h.BOOK);
+  var sh = ss.getSheets()[0];
+  sh.setName('People');
+  sh.appendRow(h.PEOPLE_HEAD.slice(0, 10));
+  app.fake.state.props.sheetId = ss.getId();
+  app.setup();
+  var f = app.fake.formats('People');
+  assert.strictEqual(f['2,11'], '@', 'K2 is text after setup');
+  assert.strictEqual(f['2001,11'], '@', 'K2001 is text after setup');
 });
 
 // ---- when Google misbehaves (Stage 3)
@@ -668,17 +865,32 @@ test('the People row count is unchanged by any request', { skip: skip }, functio
   assert.deepStrictEqual(app.people().map(function (r) { return r[P.id]; }), h.PEOPLE.map(function (r) { return r[0]; }));
 });
 
-test('nothing but Name, Email, Phone, the preferences and Last updated ever changes on a People row', { skip: skip }, function () {
+test('nothing but Email, Phone, Landline, the preferences and Last updated ever changes on a People row', { skip: skip }, function () {
   var app = h.readyApp();
   var token = app.request('one@example.com');
   var before = app.people().map(function (r) { return r.slice(); });
-  app.post({ action: 'save', t: token, name: 'Test Person Changed', email: 'changed@example.com', phone: '07700 900100', shop: true, rota: true, news: false, extra: 'x', 'Last updated': 'never' });
+  app.post({ action: 'save', t: token, name: 'Test Person Changed', email: 'changed@example.com', phone: '07700 900100', landline: '020 7946 0100', shop: true, rota: true, news: false, extra: 'x', 'Last updated': 'never' });
   var after = app.people();
   after.forEach(function (row, i) {
     row.forEach(function (v, c) {
-      var may = i === 0 && [P.name, P.email, P.phone, P.shop, P.rota, P.news, P.updated].indexOf(c) >= 0;
+      var may = i === 0 && [P.email, P.phone, P.landline, P.shop, P.rota, P.news, P.updated].indexOf(c) >= 0;
       if (!may) assert.deepStrictEqual(v, before[i][c], 'row ' + (i + 2) + ' column ' + (c + 1) + ' changed');
     });
   });
+  assert.strictEqual(after[0][P.name], 'Test Person One', 'column B (Name) never changes');
   assert.strictEqual(after[0][P.email], 'changed@example.com');
+  assert.strictEqual(after[0][P.landline], '020 7946 0100');
+  assert.strictEqual(after[0].length, 11, 'the row still has eleven columns');
+});
+
+test('the comment block at the top of Members.gs describes the round 2 behaviour', { skip: skip }, function () {
+  var src = require('fs').readFileSync(h.SCRIPT, 'utf8');
+  var m = src.match(/^\s*\/\*\*([\s\S]*?)\*\//);
+  assert.ok(m, 'Members.gs starts with a /** ... */ comment block');
+  var head = m[1];
+  assert.ok(/Landline/.test(head), 'the comment block mentions the Landline column');
+  assert.ok(/leave_empty/.test(head), 'the comment block mentions the "leave_empty" honeypot');
+  assert.ok(/landline/.test(head), 'the comment block mentions the landline field of the save body');
+  assert.ok(/[Nn]ame[^.]*(read-only|read only|cannot be changed|cannot change|not changed|not written|not read)/.test(head), 'the comment block says Name is read-only for members');
+  assert.ok(/transfer|passed to someone else|not transferable/i.test(head), 'the comment block says why (a plot is not transferable)');
 });
