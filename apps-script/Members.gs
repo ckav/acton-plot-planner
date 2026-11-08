@@ -51,7 +51,8 @@
  *    AGA members (unsafe) > Allow. It asks for Sheets and email only. Copy the Web app URL (ends /exec).
  * 2. Choose "setup" in the function menu and Run (once). It makes the sheet and remembers its ID.
  *    Open the sheet from the link in the execution log and load data/people-tab-2026-11-07.csv into
- *    People: File > Import > Upload > Replace data at selected cell (A2) > Convert text to numbers,
+ *    People: click A1 (the file has its own heading line) > File > Import > Upload > Replace data at
+ *    selected cell > Convert text to numbers,
  *    dates and formulas: No.
  * 3. Put the /exec URL into data/config.js on the planner site as memberUrl and republish the site.
  * 4. Try it from your own plot-holder address on your phone.
