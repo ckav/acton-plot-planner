@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phone frame for testing update.html</title>
+<!-- Test-only wrapper. Headless Chrome on Windows will not open a window narrower than about 500px,
+     so page.test.js loads update.html inside this 360 x 740 frame instead: the page then sees a real
+     phone-sized viewport. The query string is passed through to update.html unchanged. The probe
+     inside the frame posts its measurements here and they are written into <pre id="__qa"> so
+     chrome --dump-dom of this page carries them. -->
+<style>
+  html, body { margin: 0; background: #7A7A72; }
+  iframe { display: block; width: 360px; height: 740px; border: 0; background: #fff; margin: 0 auto; }
+</style>
+</head>
+<body>
+<iframe id="phone" title="update.html at phone size"></iframe>
+<script>
+  document.getElementById('phone').src = '/update.html' + location.search;
+  window.addEventListener('message', function (ev) {
+    if (!ev.data || !ev.data.__qa) return;
+    var pre = document.createElement('pre');
+    pre.id = '__qa';
+    pre.style.display = 'none';
+    pre.textContent = ev.data.__qa;
+    document.body.appendChild(pre);
+  });
+</script>
+</body>
+</html>
