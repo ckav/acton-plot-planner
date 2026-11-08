@@ -1,0 +1,8 @@
+{
+  "name": "acton-plot-planner",
+  "private": true,
+  "description": "Acton Gardening Association plot planner and member pages. npm test runs the member self-service tests (no dependencies, Node 20+).",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}

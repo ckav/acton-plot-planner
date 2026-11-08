@@ -1,6 +1,6 @@
 # Plot planner - Acton Gardening Association
 
-Site maps for the allotments: plot numbers, paths, sheds, water and jobs, with a card per plot. Static page, no frameworks, no accounts, works on a phone.
+Site maps for the allotments: plot numbers, paths, sheds, water and jobs, with a card per plot. Static page, no frameworks, no accounts, works on a phone. The site also carries the members' "Update my details" page, where a member changes their own contact details and choices from a link sent by email.
 
 **Status (2 Nov 2026).** Bromyard (numbers confirmed), Chestnuts and Perryn (from Claire's drawing, reps to confirm) are drawn; the Vale shows its boundary only until Goran marks the plots. The plot card shows where details would sit; it holds none.
 
@@ -14,7 +14,12 @@ Nothing about plot holders lives here. The map knows plot numbers and where thin
 - `planner.js` - draws the map from the data and handles taps
 - `jobs.html`, `jobs.js` - the job board: every site's jobs on one page, with Print (see below)
 - `jobedit.js` - the four job statuses, the edit form and the offline edit queue, shared by the map and the job board
+- `update.html`, `update.js` - "Update my details": a member's own page, opened from a link sent by email (see below). Not behind the members' password
 - `data/sites.js` - one entry per site: base image, plots, paths, markers, jobs. Positions are pixels of the site's base image
+- `data/config.js` - the two Apps Script web app addresses: `submitUrl` (plot checks and jobs) and `memberUrl` (update my details)
+- `apps-script/Code.gs` - the plot check receiver: runs in the association's Google account and writes checks and jobs to the "Plot checks" sheet
+- `apps-script/Members.gs` - the "AGA members" script: sends the update-my-details links and saves what members change
+- `test/` - the member page and script tests (`npm test`); `package.json` is the one-line file that tells Node how to run them
 - `img/` - base satellite images (Google Earth; credit shown on the page)
 
 ## Updating
@@ -112,6 +117,38 @@ Every page opens behind one shared password. It is checked by the Apps Script, s
 - **Linking from the Google Site:** a button that opens the planner in a new tab. Not an embed: iPhones do not let an embedded page remember the password.
 - **Order when deploying:** the Apps Script first (new version, run setup, type the password), then the site. The other way round locks everyone out.
 - **Not covered:** the static files (`data/*.js`) are still readable by anyone who goes looking. They hold no plot holder details, but `plots.js` names the reps and `dashboard.js` has per-site counts.
+
+## Update my details (members)
+
+A member keeps their own name, email, phone and three choices (shop updates, volunteer rota, general news) up to date without a login, a password or an app. They open `update.html`, type their email, and the association account emails them a link that works once and for 24 hours. The link opens their own record, they change what they like and tap Save. Their plot is shown so they know the link is theirs, but they cannot change it, and they never see anyone else's row. If the email is not on the list the page says the same thing as if it were, so nobody can use it to find out who is a member. Where two people in a household share one address, each gets their own email and link.
+
+The script is `apps-script/Members.gs`, a separate Apps Script project ("AGA members") from the plot check receiver, with its own web app address and its own sheet. It asks for permission to use Sheets and to send email, nothing else. The sheet, "AGA members" (setup makes it in My Drive and remembers its ID), has four tabs:
+
+- **People** - one row per person: Contact ID (matches the committee workbook), Name, Email, Phone, Plots, Role, Shop updates, Volunteer rota, General news, Last updated. People holds the details; Links holds the address each link went to; nothing holds rent, warnings or notes. The committee can type straight into People (a wrong plot, a member with no email). The page shows whatever is there.
+- **Links** - one row per link sent: Token, Contact ID, Sent to, Made, Expires, Used.
+- **Changes** - one row per save: when, who (Contact ID) and which fields changed. Never the old or new values.
+- **Settings** - one row, "Page address": where the link in the email points.
+
+**Deploy order** (Claire does these, in the association account's browser profile):
+
+1. script.google.com > New project > paste `Members.gs` > name it "AGA members" > Deploy > New deployment > Web app, Execute as Me, Who has access: Anyone > Deploy. Google then shows a "Google hasn't verified this app" screen: choose Advanced > Go to AGA members (unsafe) > Allow. It asks for Sheets and email only. Copy the /exec URL. Paste the /exec URL into a browser tab: it should show {"ok":true,"service":"AGA members"}.
+2. Run `setup` from the function menu. Open the sheet from the link in the execution log (the Execution log panel at the bottom of the editor; or open My Drive and look for a sheet called AGA members). Load `data/people-tab-2026-11-07.csv` (from the private project folder, never from this repo) into People: click cell A1 (the file has its own heading line, which matches row 1), then File > Import > Upload the CSV > Import location "Replace data at selected cell" > "Convert text to numbers, dates and formulas: No" > Import data. Importing at A2 puts a second heading line in row 2; leaving Convert on Yes turns unspaced phone numbers into numbers and drops the leading zero (8 Nov: both happened; the fix was Undo and import again). Not a paste from Excel, which drops the leading zero from phone numbers. Only needed the first time; after that the People tab is the record.
+3. Put the /exec URL into `data/config.js` as `memberUrl`; republish the Netlify site.
+4. Try it from your own plot-holder address on your phone.
+
+Later code changes: Deploy > Manage deployments > pencil > New version. Never New deployment (the URL changes and the page breaks).
+
+**Changing the page address:** edit the Value next to "Page address" in the Settings tab. Links sent after that point there. **Revoking a link:** in the Links tab, clear its row or type anything in Used; the link then says it has expired. Links stop working on their own after 24 hours or once used.
+
+**When it breaks on a Sunday:**
+
+- Page says "This page is not ready yet": `memberUrl` in `data/config.js` is blank. Page says "No connection" on a phone that has signal: `memberUrl` is wrong. Page says "Something went wrong at our end" on every visit: `memberUrl` is probably the plot-check script's URL by mistake (the two look alike). In each case, paste the right /exec URL and republish.
+- No email arrived: first check the member's spam folder. Then open the Links tab. No row for that address in the last few minutes means the script never tried: the address is not in People (check spelling), or that address already has 3 rows in the last 24 hours, or there are 60 rows today (quota resets next day). A row exists but no email: in the Apps Script editor open Executions, open the run from that time and look for "Mail to ... failed".
+- Links point at the wrong page: check the "Page address" row in the Settings tab.
+- A tab or heading is missing: run `setup` again. It never removes anything. The script finds the sheet by its ID, so renaming or moving the sheet does no harm.
+- The sheet was deleted: first look in Google Drive > Bin: a deleted sheet can be restored for 30 days and the script carries on unchanged. Only if it is gone for good: in the Apps Script editor open Project Settings > Script properties, delete `sheetId`, then run `setup` again (it makes a fresh, empty sheet) and load the People CSV as in step 2.
+- A member says the link does not work: Outlook on a desktop sometimes breaks the long link over two lines. Ask them to open the email on their phone, or to ask for a new link from there.
+- Checking the code after a change: `npm test` in `plot-planner` runs the tests (Node 20 or newer; Chrome optional, for the page screenshots). The tests are in `test/` (screenshots land in `test/screens/`). Node is a free download from nodejs.org.
 
 ## Next: the rep's private list
 

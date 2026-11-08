@@ -2,5 +2,7 @@
 // Google account (see README, "Plot check form"). Leave empty until it is deployed; the form then
 // says it is not connected yet instead of pretending to send.
 window.PLANNER_CONFIG = {
-  submitUrl: "https://script.google.com/macros/s/AKfycbxKKvocLtkb0cEDGA1abmUp3cQl7eWSpgYtPveiyu-o04Tl17uTgraSN-L1H7_7rglm8A/exec"
+  submitUrl: "https://script.google.com/macros/s/AKfycbxKKvocLtkb0cEDGA1abmUp3cQl7eWSpgYtPveiyu-o04Tl17uTgraSN-L1H7_7rglm8A/exec",
+  // Where update.html (members' own details) sends: the "AGA members" Apps Script URL. Blank until deployed; the page then says it is not ready yet.
+  memberUrl: "https://script.google.com/macros/s/AKfycbzJ0ehEimfX5o_zERWolxnEkUw02p0PRU4dpGw3YTUHz4Ggz729jWw4SKsBUnQALH3N/exec"
 };
