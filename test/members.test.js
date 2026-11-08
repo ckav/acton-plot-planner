@@ -46,7 +46,7 @@ test('setup makes the "AGA members" sheet with the four tabs and their headings 
   assert.deepStrictEqual(app.tab('Links').head, ['Token', 'Contact ID', 'Sent to', 'Made', 'Expires', 'Used']);
   assert.deepStrictEqual(app.tab('Changes').head, ['When', 'Contact ID', 'What changed']);
   assert.deepStrictEqual(app.tab('Settings').head, ['Setting', 'Value', 'What it does']);
-  assert.deepStrictEqual(app.settings(), [['Page address', 'https://acton-plot-planner.netlify.app/update.html', 'Where the link in the email points.']]);
+  assert.deepStrictEqual(app.settings(), [['Page address', 'https://ckav.github.io/acton-plot-planner/update.html', 'Where the link in the email points.']]);
   assert.ok(app.fake.log.some(function (l) { return l.indexOf(book.getUrl()) >= 0; }), 'setup should log the sheet URL');
 });
 
@@ -81,7 +81,7 @@ test('a known email gets one email with a 64-hex link and a Links row', { skip: 
   var token = h.tokenIn(m);
   assert.ok(token, 'email body should hold a link ending ?t=<64 hex chars>: ' + m.body);
   assert.match(token, /^[0-9a-f]{64}$/);
-  assert.ok(m.body.indexOf('https://acton-plot-planner.netlify.app/update.html?t=' + token) >= 0, 'link should point at the Settings page address');
+  assert.ok(m.body.indexOf('https://ckav.github.io/acton-plot-planner/update.html?t=' + token) >= 0, 'link should point at the Settings page address');
   var links = app.links();
   assert.strictEqual(links.length, 1);
   assert.strictEqual(links[0][L.token], token);

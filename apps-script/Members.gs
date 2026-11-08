@@ -63,7 +63,7 @@
 var SHEET_NAME = 'AGA members';
 var SENDER_NAME = 'Acton Gardening Association';
 var INBOX = 'actongardening@gmail.com';
-var PAGE_DEFAULT = 'https://acton-plot-planner.netlify.app/update.html';
+var PAGE_DEFAULT = 'https://ckav.github.io/acton-plot-planner/update.html';   // the Settings tab overrides this; the Netlify address redirects here once the move (task 4.21) is done
 var LINK_HOURS = 24;          // how long a link works
 var MAX_PER_EMAIL = 3;        // requests one address may make in 24 hours
 var MAX_PER_DAY = 60;         // emails sent in 24 hours in total
