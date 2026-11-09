@@ -6,7 +6,7 @@ Site maps for the allotments: plot numbers, paths, sheds, water and jobs, with a
 
 ## The rule this page follows
 
-Nothing about plot holders lives here. The map knows plot numbers and where things are. Everything about a plot (holder, rent, checks, photos, flags, notes) stays in the committee's own record and is looked up by plot number. That keeps this page safe to publish and keeps one record, not two.
+Nothing about plot holders lives here, apart from the site reps' first names ("Jon (Bromyard)") for the "Checked by" list. The map knows plot numbers and where things are. Everything about a plot (holder, rent, checks, photos, flags, notes) stays in the committee's own record and is looked up by plot number. That keeps this page safe to publish and keeps one record, not two.
 
 ## Files
 
@@ -116,7 +116,7 @@ Every page opens behind one shared password. It is checked by the Apps Script, s
 - **Guessing:** after 30 wrong passwords in 15 minutes the password is refused for 15 minutes. Rep links keep working.
 - **Linking from the Google Site:** a button that opens the planner in a new tab. Not an embed: iPhones do not let an embedded page remember the password.
 - **Order when deploying:** the Apps Script first (new version, run setup, type the password), then the site. The other way round locks everyone out.
-- **Not covered:** the static files (`data/*.js`) are still readable by anyone who goes looking. They hold no plot holder details, but `plots.js` names the reps and `dashboard.js` has per-site counts.
+- **Not covered:** the static files (`data/*.js`) are still readable by anyone who goes looking. They hold no plot holder details, no surnames and no contact details: `plots.js` has the reps' first names and sites, and `dashboard.js` has per-site counts.
 
 ## Update my details (members)
 

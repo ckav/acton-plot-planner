@@ -5,10 +5,11 @@ window.PLANNER_PLOTS = {
   "Perryn": ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21 (bees)","22"],
   "Bromyard": ["1","2","3","4","5","6","7A","7B","8","9","10","11","12","13","14","15"]
 };
+// Site reps by first name only: the page shows "Jon (Bromyard)". No surnames, no contact details.
 window.PLANNER_REPS = [
-  { name: "Jon Snow", site: "Bromyard" },
-  { name: "Jack Cuijanovic", site: "Chestnuts" },
-  { name: "Julie Greenhough", site: "Perryn" },
-  { name: "Goran Mahmood", site: "The Vale" },
-  { name: "Claire Kavanagh", site: "" }
+  { name: "Jon", site: "Bromyard" },
+  { name: "Jack", site: "Chestnuts" },
+  { name: "Julie", site: "Perryn" },
+  { name: "Goran", site: "The Vale" },
+  { name: "Claire", site: "" }
 ];
